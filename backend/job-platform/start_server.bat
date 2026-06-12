@@ -7,5 +7,5 @@ echo.
 cd /d "%~dp0"
 echo Working directory: %CD%
 echo.
-echo Starting uvicorn on port 8001...
-.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8001 --reload
+echo Starting uvicorn on port 8003...
+.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8003 --reload

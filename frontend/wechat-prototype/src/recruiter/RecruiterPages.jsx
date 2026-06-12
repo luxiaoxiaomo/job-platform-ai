@@ -75,6 +75,7 @@ function JobList({ onCreate }) {
   const toast = useToast()
   const [certification, setCertification] = useState(null)
   const [jobs, setJobs] = useState(myJobs)
+  const [jobsError, setJobsError] = useState('')
   const [jobsLoading, setJobsLoading] = useState(true)
   const [sortBy, setSortBy] = useState('time')
   const [jobStates, setJobStates] = useState({})
@@ -91,9 +92,13 @@ function JobList({ onCreate }) {
     listMyJobs({ limit: 100 })
       .then(data => {
         const mapped = (data.items || []).map(mapApiJobToCard)
-        setJobs(mapped.length ? mapped : myJobs)
+        setJobs(mapped)
+        setJobsError('')
       })
-      .catch(() => setJobs(myJobs))
+      .catch(error => {
+        setJobs([])
+        setJobsError(error.message || '岗位列表加载失败')
+      })
       .finally(() => setJobsLoading(false))
   }, [])
 

@@ -1,17 +1,14 @@
 @echo off
+chcp 65001 > nul
 echo ========================================
-echo   启动前端服务
+echo   Starting frontend dev server
 echo ========================================
 echo.
-
 cd /d "%~dp0"
-
-echo 正在启动前端...
-echo 访问 http://localhost:5174 查看应用
-echo 按 Ctrl+C 停止服务
+echo URL: http://localhost:5175
+echo API: http://localhost:8003
+echo Press Ctrl+C to stop
 echo ========================================
 echo.
-
 npm run dev
-
 pause

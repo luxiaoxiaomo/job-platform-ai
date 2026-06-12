@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   NavBar, TabBar, CellGroup, Cell, AIBadge, AIButton, AICard, useToast, Switch,
 } from '../components/ui.jsx'
 import { feedJobs, seekerChats, initialSubs, aiRecommendSubs, aiMock, pickColor } from '../mock/data.js'
+import { listPublicJobs } from '../services/index.js'
 
 /* ============ 应聘者 Tab 容器 ============ */
 export function SeekerApp() {
@@ -32,9 +33,26 @@ function Feed({ onOpen }) {
   const [sortBy, setSortBy] = useState('match') // match | time | salary
   const [filter, setFilter] = useState('all') // all | highMatch | unread | starred
   const [search, setSearch] = useState('')
+  const [publicJobs, setPublicJobs] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(true)
+  const [jobsError, setJobsError] = useState('')
   const statusIcon = { new: '🆕', viewed: '👁', chatted: '💬', archived: '🗑', starred: '⭐' }
 
-  let jobs = [...feedJobs]
+  useEffect(() => {
+    setJobsLoading(true)
+    listPublicJobs({ limit: 100 })
+      .then(data => {
+        setPublicJobs((data.items || []).map(mapPublicJobToFeed))
+        setJobsError('')
+      })
+      .catch(error => {
+        setPublicJobs([])
+        setJobsError(error.message || '公开岗位加载失败')
+      })
+      .finally(() => setJobsLoading(false))
+  }, [])
+
+  let jobs = [...publicJobs]
   if (search.trim()) {
     const kw = search.trim().toLowerCase()
     jobs = jobs.filter(j => j.name.toLowerCase().includes(kw) || j.companyShow.toLowerCase().includes(kw) || j.tags.some(t => t.toLowerCase().includes(kw)))
@@ -115,6 +133,23 @@ function Feed({ onOpen }) {
 }
 
 /* ============ 关键词订阅（AI 推荐 + 自然语言解析） ============ */
+function mapPublicJobToFeed(job) {
+  const salary = `${job.salary_min}K-${job.salary_max}K`
+  return {
+    id: job.id,
+    name: job.title,
+    salary,
+    city: job.city,
+    exp: job.experience,
+    edu: job.education,
+    tags: job.tags || [],
+    companyShow: job.recruiter_display_name || '认证企业',
+    matchScore: 80,
+    aiHighlight: '岗位已通过平台审核，当前对求职者可见。',
+    status: 'new',
+  }
+}
+
 function Subscriptions() {
   const toast = useToast()
   const navigate = useNavigate()

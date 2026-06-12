@@ -2,13 +2,16 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../components/ui.jsx'
 import { LineChart, ScoreBar } from '../components/charts.jsx'
-import { adminStats, adminReviewQueue, adminUsers, adminAIMetrics, adminJobLib } from '../mock/data.js'
+import { adminStats, adminUsers, adminAIMetrics, adminJobLib } from '../mock/data.js'
 import {
   createPromptConfig,
   getActivePromptConfig,
+  listJobsForAdmin,
   listCompanyCertifications,
   listPromptConfigs,
+  preReviewJobContent,
   publishPromptConfig,
+  reviewJob,
   reviewCompanyCertification,
   testPromptConfig,
 } from '../services/index.js'
@@ -65,7 +68,7 @@ export function AdminApp() {
         </header>
         <div className="admin-content">
           {page === 'dash' && <Dash />}
-          {page === 'review' && <Review />}
+          {page === 'review' && <ReviewRealV2 />}
           {page === 'users' && <Users />}
           {page === 'ai' && <AIMonitor />}
           {page === 'data' && <BaseData />}
@@ -272,6 +275,391 @@ function Users() {
         </tbody>
       </table>
     </div>
+  )
+}
+
+function ReviewReal() {
+  const navigate = useNavigate()
+  const toast = useToast()
+  const [jobs, setJobs] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(false)
+  const [jobsError, setJobsError] = useState('')
+  const [expandedJobId, setExpandedJobId] = useState(null)
+  const [certQueue, setCertQueue] = useState([])
+  const [certLoading, setCertLoading] = useState(false)
+  const [certError, setCertError] = useState('')
+  const [certStatusFilter, setCertStatusFilter] = useState('pending')
+
+  useEffect(() => {
+    loadJobs()
+  }, [])
+
+  useEffect(() => {
+    loadCerts(certStatusFilter)
+  }, [certStatusFilter])
+
+  const loadJobs = async () => {
+    try {
+      setJobsLoading(true)
+      const data = await listJobsForAdmin({ status: 'pending', skip: 0, limit: 50 })
+      const items = data.items || []
+      const jobsWithReview = await Promise.all(items.map(async job => {
+        try {
+          const aiReview = await preReviewJobContent(job)
+          return { ...job, aiReview }
+        } catch (error) {
+          return {
+            ...job,
+            aiReviewError: error.message || 'AI pre-review failed',
+            aiReview: {
+              level: 'warning',
+              summary: 'AI 预审暂不可用，请人工复核岗位内容。',
+              findings: [],
+            },
+          }
+        }
+      }))
+      setJobs(jobsWithReview)
+      setJobsError('')
+    } catch (error) {
+      setJobsError(error.message || '岗位列表加载失败')
+    } finally {
+      setJobsLoading(false)
+    }
+  }
+
+  const loadCerts = async (statusFilter = certStatusFilter) => {
+    try {
+      setCertLoading(true)
+      const params = { skip: 0, limit: 50 }
+      if (statusFilter !== 'all') params.status = statusFilter
+      const data = await listCompanyCertifications(params)
+      setCertQueue(data.items || [])
+      setCertError('')
+    } catch (error) {
+      setCertError(error.message || '企业认证列表加载失败')
+    } finally {
+      setCertLoading(false)
+    }
+  }
+
+  const reviewPendingJob = async (jobId, action) => {
+    try {
+      await reviewJob(jobId, action === 'approve'
+        ? { action: 'approve' }
+        : { action: 'reject', reject_reason: '岗位内容需要补充或调整后重新提交' })
+      await loadJobs()
+      toast(action === 'approve' ? '岗位已通过' : '岗位已驳回')
+    } catch (error) {
+      toast(error.message || '岗位审核失败')
+    }
+  }
+
+  const reviewCert = async (id, action) => {
+    try {
+      await reviewCompanyCertification(id, action === 'approve'
+        ? { action: 'approve' }
+        : { action: 'reject', reject_reason: '企业认证材料需要补充' })
+      await loadCerts(certStatusFilter)
+      toast(action === 'approve' ? '企业认证已通过' : '企业认证已驳回')
+    } catch (error) {
+      toast(error.message || '企业认证审核失败')
+    }
+  }
+
+  return (
+    <>
+      <div className="admin-card">
+        <div className="ac-title admin-section-head">
+          <span>岗位发布审核</span>
+          <span className="tiny muted">{jobsLoading ? '加载中...' : `待审 ${jobs.length} 条`}</span>
+        </div>
+        {jobsError && <div style={{ color: '#E54545', fontSize: 13, marginBottom: 12 }}>{jobsError}</div>}
+        {jobsLoading ? (
+          <div style={{ color: 'var(--a-text-2)', padding: 20 }}>加载岗位列表中...</div>
+        ) : (
+          <table className="admin-table">
+            <thead><tr><th>岗位</th><th>企业</th><th>城市</th><th>薪资</th><th>经验/学历</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              {jobs.map(job => (
+                <tr key={job.id}>
+                  <td>{job.title}<div style={{ color: 'var(--a-text-2)', fontSize: 12, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.description}</div></td>
+                  <td>{job.recruiter_display_name || '-'}</td>
+                  <td>{job.city}</td>
+                  <td>{job.salary_min}-{job.salary_max}K</td>
+                  <td>{job.experience} / {job.education}</td>
+                  <td><span className="a-tag warn">{job.status}</span></td>
+                  <td>
+                    <span className="a-btn sm primary" onClick={() => reviewPendingJob(job.id, 'approve')}>通过</span>
+                    <span className="a-btn sm danger" style={{ marginLeft: 6 }} onClick={() => reviewPendingJob(job.id, 'reject')}>驳回</span>
+                  </td>
+                </tr>
+              ))}
+              {jobs.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--a-text-2)', padding: 30 }}>暂无待审核岗位</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="admin-card">
+        <div className="ac-title admin-section-head">
+          <span>企业认证审核</span>
+          <span className="tiny muted">{certLoading ? '加载中...' : `当前 ${certQueue.length} 条`}</span>
+        </div>
+        <div className="admin-segment">
+          {['pending', 'approved', 'rejected'].map(s => (
+            <button key={s} type="button" className={certStatusFilter === s ? 'active' : ''} onClick={() => setCertStatusFilter(s)}>{s}</button>
+          ))}
+        </div>
+        {certError && <div style={{ color: '#E54545', fontSize: 13, marginBottom: 12 }}>{certError}</div>}
+        {certLoading ? (
+          <div style={{ color: 'var(--a-text-2)', padding: 20 }}>加载企业认证中...</div>
+        ) : (
+          <table className="admin-table">
+            <thead><tr><th>企业</th><th>提交人</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              {certQueue.map(c => (
+                <tr key={c.id}>
+                  <td>{c.company_name}</td>
+                  <td>{c.recruiter_display_name || '-'}</td>
+                  <td><span className="a-tag blue">{c.status}</span></td>
+                  <td>
+                    <span className="a-btn sm" onClick={() => navigate(`/admin/company-certification/${c.id}`)}>详情</span>
+                    {c.status === 'pending' && (
+                      <>
+                        <span className="a-btn sm primary" style={{ marginLeft: 6 }} onClick={() => reviewCert(c.id, 'approve')}>通过</span>
+                        <span className="a-btn sm danger" style={{ marginLeft: 6 }} onClick={() => reviewCert(c.id, 'reject')}>驳回</span>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {certQueue.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--a-text-2)', padding: 30 }}>暂无企业认证</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  )
+}
+
+function ReviewRealV2() {
+  const navigate = useNavigate()
+  const toast = useToast()
+  const [jobs, setJobs] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(false)
+  const [jobsError, setJobsError] = useState('')
+  const [expandedJobId, setExpandedJobId] = useState(null)
+  const [certs, setCerts] = useState([])
+  const [certLoading, setCertLoading] = useState(false)
+  const [certError, setCertError] = useState('')
+  const [certStatus, setCertStatus] = useState('pending')
+
+  useEffect(() => {
+    loadJobs()
+  }, [])
+
+  useEffect(() => {
+    loadCerts(certStatus)
+  }, [certStatus])
+
+  const loadJobs = async () => {
+    try {
+      setJobsLoading(true)
+      const data = await listJobsForAdmin({ status: 'pending', skip: 0, limit: 50 })
+      const items = data.items || []
+      const reviewed = await Promise.all(items.map(async job => {
+        try {
+          const aiReview = await preReviewJobContent(job)
+          return { ...job, aiReview }
+        } catch (error) {
+          return {
+            ...job,
+            aiReviewError: error.message || 'AI 预审失败',
+            aiReview: {
+              level: 'warning',
+              summary: 'AI 预审暂不可用，请人工复核岗位内容。',
+              findings: [],
+              prompt_version: null,
+              prompt_source: 'fallback',
+            },
+          }
+        }
+      }))
+      setJobs(reviewed)
+      setJobsError('')
+    } catch (error) {
+      setJobsError(error.message || '岗位列表加载失败')
+    } finally {
+      setJobsLoading(false)
+    }
+  }
+
+  const loadCerts = async (status = certStatus) => {
+    try {
+      setCertLoading(true)
+      const params = { skip: 0, limit: 50 }
+      if (status !== 'all') params.status = status
+      const data = await listCompanyCertifications(params)
+      setCerts(data.items || [])
+      setCertError('')
+    } catch (error) {
+      setCertError(error.message || '企业认证列表加载失败')
+    } finally {
+      setCertLoading(false)
+    }
+  }
+
+  const reviewPendingJob = async (jobId, action) => {
+    try {
+      await reviewJob(jobId, action === 'approve'
+        ? { action: 'approve' }
+        : { action: 'reject', reject_reason: '岗位内容需要补充或调整后重新提交' })
+      await loadJobs()
+      toast(action === 'approve' ? '岗位已通过' : '岗位已驳回')
+    } catch (error) {
+      toast(error.message || '岗位审核失败')
+    }
+  }
+
+  const reviewCert = async (id, action) => {
+    try {
+      await reviewCompanyCertification(id, action === 'approve'
+        ? { action: 'approve' }
+        : { action: 'reject', reject_reason: '企业认证材料需要补充' })
+      await loadCerts(certStatus)
+      toast(action === 'approve' ? '企业认证已通过' : '企业认证已驳回')
+    } catch (error) {
+      toast(error.message || '企业认证审核失败')
+    }
+  }
+
+  const aiTag = review => {
+    if (review?.level === 'pass') return { cls: 'pass', text: '建议通过' }
+    if (review?.level === 'block') return { cls: 'block', text: '建议拦截' }
+    return { cls: 'warn', text: '人工复核' }
+  }
+
+  return (
+    <>
+      <div className="admin-card">
+        <div className="ac-title admin-section-head">
+          <span>岗位发布审核</span>
+          <span className="tiny muted">{jobsLoading ? '加载中...' : `待审 ${jobs.length} 条`}</span>
+        </div>
+        {jobsError && <div style={{ color: '#E54545', fontSize: 13, marginBottom: 12 }}>{jobsError}</div>}
+        {jobsLoading ? (
+          <div style={{ color: 'var(--a-text-2)', padding: 20 }}>加载岗位列表和 AI 预审结果中...</div>
+        ) : (
+          <table className="admin-table">
+            <thead><tr><th>岗位</th><th>企业</th><th>城市</th><th>薪资</th><th>AI 预审</th><th>风险说明</th><th>操作</th></tr></thead>
+            <tbody>
+              {jobs.map(job => {
+                const review = job.aiReview || {}
+                const tag = aiTag(review)
+                const expanded = expandedJobId === job.id
+                return (
+                  <React.Fragment key={job.id}>
+                    <tr>
+                      <td>
+                        <strong>{job.title}</strong>
+                        <div style={{ color: 'var(--a-text-2)', fontSize: 12 }}>{job.experience} / {job.education}</div>
+                      </td>
+                      <td>{job.recruiter_display_name || '-'}</td>
+                      <td>{job.city}</td>
+                      <td>{job.salary_min}-{job.salary_max}K</td>
+                      <td>
+                        <span className={`a-tag ${tag.cls}`}>{tag.text}</span>
+                        <div className="tiny muted" style={{ marginTop: 4 }}>v{review.prompt_version || '-'} · {review.prompt_source || 'rules'}</div>
+                      </td>
+                      <td style={{ maxWidth: 280 }}>
+                        <div style={{ color: 'var(--a-text-2)' }}>{review.summary || '-'}</div>
+                        {job.aiReviewError && <div className="tiny" style={{ color: '#E54545', marginTop: 4 }}>{job.aiReviewError}</div>}
+                      </td>
+                      <td>
+                        <span className="a-btn sm" onClick={() => setExpandedJobId(expanded ? null : job.id)}>{expanded ? '收起' : '详情'}</span>
+                        <span className="a-btn sm primary" style={{ marginLeft: 6 }} onClick={() => reviewPendingJob(job.id, 'approve')}>通过</span>
+                        <span className="a-btn sm danger" style={{ marginLeft: 6 }} onClick={() => reviewPendingJob(job.id, 'reject')}>驳回</span>
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr>
+                        <td colSpan="7" style={{ background: '#FAFBFC' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <div>
+                              <div className="tiny muted" style={{ marginBottom: 6 }}>岗位职责</div>
+                              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{job.description}</div>
+                            </div>
+                            <div>
+                              <div className="tiny muted" style={{ marginBottom: 6 }}>任职要求</div>
+                              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{job.requirement}</div>
+                            </div>
+                          </div>
+                          {(review.findings || []).length > 0 ? (
+                            <div style={{ marginTop: 14 }}>
+                              <div className="tiny muted" style={{ marginBottom: 6 }}>AI 风险项</div>
+                              {(review.findings || []).map((finding, index) => (
+                                <div key={index} style={{ marginBottom: 6 }}>
+                                  <span className={`a-tag ${finding.severity === 'block' ? 'block' : 'warn'}`}>{finding.category}</span>
+                                  <span style={{ marginLeft: 8 }}>{finding.evidence || '-'}</span>
+                                  <span style={{ marginLeft: 8, color: 'var(--a-text-2)' }}>{finding.suggestion}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="tiny muted" style={{ marginTop: 14 }}>未检测到明显风险项。</div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+              {jobs.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--a-text-2)', padding: 30 }}>暂无待审核岗位</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="admin-card">
+        <div className="ac-title admin-section-head">
+          <span>企业认证审核</span>
+          <span className="tiny muted">{certLoading ? '加载中...' : `当前 ${certs.length} 条`}</span>
+        </div>
+        <div className="admin-segment">
+          {['pending', 'approved', 'rejected'].map(status => (
+            <button key={status} type="button" className={certStatus === status ? 'active' : ''} onClick={() => setCertStatus(status)}>{status}</button>
+          ))}
+        </div>
+        {certError && <div style={{ color: '#E54545', fontSize: 13, marginBottom: 12 }}>{certError}</div>}
+        {certLoading ? (
+          <div style={{ color: 'var(--a-text-2)', padding: 20 }}>加载企业认证中...</div>
+        ) : (
+          <table className="admin-table">
+            <thead><tr><th>企业</th><th>提交人</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              {certs.map(cert => (
+                <tr key={cert.id}>
+                  <td>{cert.company_name}</td>
+                  <td>{cert.recruiter_display_name || '-'}</td>
+                  <td><span className="a-tag blue">{cert.status}</span></td>
+                  <td>
+                    <span className="a-btn sm" onClick={() => navigate(`/admin/company-certification/${cert.id}`)}>详情</span>
+                    {cert.status === 'pending' && (
+                      <>
+                        <span className="a-btn sm primary" style={{ marginLeft: 6 }} onClick={() => reviewCert(cert.id, 'approve')}>通过</span>
+                        <span className="a-btn sm danger" style={{ marginLeft: 6 }} onClick={() => reviewCert(cert.id, 'reject')}>驳回</span>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {certs.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--a-text-2)', padding: 30 }}>暂无企业认证</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
   )
 }
 
