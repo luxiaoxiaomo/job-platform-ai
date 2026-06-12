@@ -1,0 +1,123 @@
+/* ============================================================
+   管理后台 桌面宽屏风（与小程序端区隔，仅在 /admin/* 生效）
+   ============================================================ */
+
+.admin {
+  --a-primary: #07C160;
+  --a-bg: #F5F6F8;
+  --a-sidebar: #1F2733;
+  --a-line: #ECECEC;
+  --a-text: #1A1A2E;
+  --a-text-2: #6B7280;
+  position: fixed; inset: 0;
+  display: flex;
+  background: var(--a-bg);
+  font-size: 14px;
+  color: var(--a-text);
+}
+
+/* 侧边栏 */
+.admin-side {
+  width: 220px; flex-shrink: 0; background: var(--a-sidebar); color: #fff;
+  display: flex; flex-direction: column; padding: 0;
+}
+.admin-brand { padding: 20px 20px 16px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.admin-brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--a-primary); }
+.admin-nav { padding: 12px 10px; flex: 1; overflow-y: auto; }
+.admin-nav .nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px;
+  color: rgba(255,255,255,.65); font-size: 14px; cursor: pointer; margin-bottom: 2px; transition: all .15s;
+}
+.admin-nav .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+.admin-nav .nav-item.active { background: var(--a-primary); color: #fff; }
+.admin-nav .nav-item .ico { font-size: 16px; width: 18px; text-align: center; }
+.admin-side-foot { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.08); font-size: 12px; color: rgba(255,255,255,.4); cursor: pointer; }
+
+/* 主区 */
+.admin-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.admin-topbar { height: 56px; background: #fff; border-bottom: 1px solid var(--a-line); display: flex; align-items: center; padding: 0 24px; gap: 16px; flex-shrink: 0; }
+.admin-topbar .at-title { font-size: 16px; font-weight: 600; }
+.admin-topbar .at-right { margin-left: auto; display: flex; align-items: center; gap: 16px; color: var(--a-text-2); }
+.admin-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* KPI 卡 */
+.admin-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.admin-kpi { background: #fff; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+.admin-kpi .k-label { font-size: 13px; color: var(--a-text-2); }
+.admin-kpi .k-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+.admin-kpi .k-delta { font-size: 12px; margin-top: 4px; }
+.admin-kpi .k-delta.up { color: var(--a-primary); }
+.admin-kpi .k-delta.down { color: #FA5151; }
+
+/* 卡片 / 面板 */
+.admin-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.04); margin-bottom: 20px; }
+.admin-card .ac-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.admin-section-head { justify-content: space-between; }
+.admin-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+.admin-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 14px;
+  border: 1px solid var(--a-line);
+  border-radius: 8px;
+  background: #F6F7F9;
+}
+.admin-segment button {
+  min-width: 64px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--a-text-2);
+}
+.admin-segment button:hover { color: var(--a-primary); background: #fff; }
+.admin-segment button.active { background: #fff; color: var(--a-primary); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+/* 表格 */
+.admin-table { width: 100%; border-collapse: collapse; }
+.admin-table th { text-align: left; font-size: 12px; color: var(--a-text-2); font-weight: 500; padding: 10px 12px; border-bottom: 1px solid var(--a-line); background: #FAFBFC; }
+.admin-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #F3F4F6; }
+.admin-table tr:hover td { background: #FAFBFC; }
+
+/* 徽标 */
+.a-tag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 9px; border-radius: 5px; font-size: 12px; }
+.a-tag.pass { background: #ECF9F1; color: #06AD56; }
+.a-tag.warn { background: #FFF7E6; color: #D9941A; }
+.a-tag.block { background: #FFECEC; color: #E54545; }
+.a-tag.gray { background: #F2F3F5; color: #6B7280; }
+.a-tag.blue { background: #E8F5FF; color: #1187D6; }
+
+.a-btn { padding: 5px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid var(--a-line); background: #fff; color: var(--a-text); }
+.a-btn:hover { border-color: var(--a-primary); color: var(--a-primary); }
+.a-btn.primary { background: var(--a-primary); color: #fff; border-color: var(--a-primary); }
+.a-btn.danger { background: #fff; color: #FA5151; border-color: #FAD3D3; }
+.a-btn.sm { padding: 3px 10px; font-size: 12px; }
+
+.a-risk-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.a-risk-dot.low { background: #07C160; }
+.a-risk-dot.mid { background: #FA9D3B; }
+.a-risk-dot.high { background: #FA5151; }
+
+.admin-back-mini { position: fixed; right: 20px; bottom: 20px; background: var(--a-sidebar); color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 50; }
+
+.prompt-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); gap: 20px; align-items: start; }
+.prompt-editor, .prompt-test { min-width: 0; }
+.prompt-editor label { display: block; margin: 12px 0 6px; color: var(--a-text-2); font-size: 12px; }
+.prompt-editor input, .prompt-editor textarea, .prompt-test input, .prompt-test textarea {
+  width: 100%;
+  border: 1px solid var(--a-line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #fff;
+  color: var(--a-text);
+}
+.prompt-editor textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.prompt-test input { margin-bottom: 8px; }
+.prompt-test textarea { min-height: 88px; margin-bottom: 8px; resize: vertical; }
+.prompt-result { margin-top: 12px; padding: 12px; border: 1px solid var(--a-line); border-radius: 8px; background: #FAFBFC; }
+.a-btn.disabled, .a-btn:disabled { opacity: .55; cursor: default; }

@@ -1,0 +1,50 @@
+# Environment variables and local config
+.env
+.env.*
+!.env.example
+!.env.demo
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+env/
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+coverage/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs and local runtime files
+*.log
+*.out.log
+*.err.log
+*.pid
+
+# Browser automation/debug profiles
+_chrome-debug/
+_chrome-cdp/
+_chrome-cdp-*/
+_chrome-clean-view/
+_shots/
+
+# Local uploads and generated user files
+uploads/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Tool-local metadata
+.claude/

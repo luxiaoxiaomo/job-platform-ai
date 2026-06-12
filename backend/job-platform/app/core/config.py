@@ -1,0 +1,98 @@
+"""
+应用配置管理
+从环境变量读取配置
+"""
+from typing import List
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """应用配置"""
+
+    # 基础配置
+    PROJECT_NAME: str = "空岗信息发布对接平台"
+    ENV: str = "dev"  # dev/test/prod
+    DEBUG: bool = True
+    SECRET_KEY: str = "your-secret-key-change-in-production"
+
+    # 数据库配置
+    DATABASE_URL: str = "postgresql+asyncpg://dev:dev123@localhost:5432/jobplatform_dev"
+    TEST_DATABASE_URL: str = "postgresql+asyncpg://dev:dev123@localhost:5432/jobplatform_test"
+    DATABASE_ECHO: bool = False
+
+    # Redis配置
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # AI服务配置
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    QWEN_API_KEY: str = ""  # 通义千问（备用）
+
+    # JWT配置
+    JWT_SECRET_KEY: str = "your-jwt-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 120  # 2小时
+
+    # 手机号哈希密钥（独立于JWT）
+    PHONE_HASH_SECRET: str = "your-phone-hash-secret-change-in-production"
+
+    # 字段加密配置
+    ENCRYPTION_KEY: str = ""  # 32字节Fernet密钥
+
+    # CORS配置
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+    ]
+
+    # 文件上传配置
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+
+    # OCR configuration
+    OCR_PROVIDER: str = "mock"  # mock/rapidocr
+    OCR_CONFIDENCE_THRESHOLD: float = 0.5
+    OCR_PDF_MAX_PAGES: int = 3
+    OCR_PDF_RENDER_SCALE: float = 2.0
+
+    # Celery配置
+    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
+
+    # 配置文件
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+    )
+
+
+# 全局配置实例
+settings = Settings()
+
+# 生产环境配置校验
+if settings.ENV == "prod":
+    # 检查关键密钥不能使用默认值
+    if settings.SECRET_KEY == "your-secret-key-change-in-production":
+        raise ValueError("生产环境必须配置安全的SECRET_KEY")
+
+    if settings.JWT_SECRET_KEY == "your-jwt-secret-key-change-in-production":
+        raise ValueError("生产环境必须配置安全的JWT_SECRET_KEY")
+
+    if settings.PHONE_HASH_SECRET == "your-phone-hash-secret-change-in-production":
+        raise ValueError("生产环境必须配置安全的PHONE_HASH_SECRET")
+
+    if not settings.ENCRYPTION_KEY:
+        raise ValueError("生产环境必须配置ENCRYPTION_KEY")
+
+    if "dev" in settings.DATABASE_URL.lower():
+        raise ValueError("生产环境不能使用dev数据库配置")
+
+    # 检查数据库URL不能使用默认值
+    if "dev:dev123" in settings.DATABASE_URL or "localhost" in settings.DATABASE_URL:
+        raise ValueError("生产环境不能使用默认数据库配置")
