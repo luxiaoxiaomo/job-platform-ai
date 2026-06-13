@@ -1,8 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NavBar, AIBadge, AICard, useToast, Sheet } from '../components/ui.jsx'
 import { RadarChart, ScoreBar } from '../components/charts.jsx'
-import { matchAnalysis, myApplications, favoriteJobs, companyProfile, interviewPrep, getFeedJob, pickColor } from '../mock/data.js'
+import { matchAnalysis, favoriteJobs, companyProfile, interviewPrep, getFeedJob, pickColor } from '../mock/data.js'
+import { createApplication, listMyApplications } from '../services/index.js'
+import { findPublicJobById } from '../utils/jobView.js'
+import { applicationStatusTag, applicationStatusText, formatDateTime } from '../utils/applicationView.js'
 
 /* ============ 人岗匹配分析（应聘者：我 vs 岗位） ============ */
 export function SeekerMatch() {
@@ -57,8 +60,59 @@ export function SeekerApply() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
-  const job = getFeedJob(id) || getFeedJob('1')
+  const fallbackJob = getFeedJob(id) || getFeedJob('1')
+  const [job, setJob] = useState(fallbackJob)
   const [done, setDone] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    findPublicJobById(id)
+      .then(realJob => {
+        if (!alive) return
+        if (realJob) {
+          setJob(realJob)
+          setError('')
+          return
+        }
+        setJob(fallbackJob)
+        setError('未找到真实公开岗位，无法提交真实投递。')
+      })
+      .catch(err => {
+        if (!alive) return
+        setJob(fallbackJob)
+        setError(err.message || '岗位加载失败。')
+      })
+    return () => { alive = false }
+  }, [id])
+
+  const submitApplication = async () => {
+    if (submitting || done) return
+    if (!Number(id)) {
+      setError('当前岗位不是后端真实岗位，不能提交投递。')
+      return
+    }
+    setSubmitting(true)
+    setError('')
+    try {
+      await createApplication({
+        job_id: Number(id),
+        resume_snapshot: '李然（虚拟名）｜5年｜前端开发｜本科｜期望薪资 22K-30K',
+        cover_message: `申请岗位：${job.name}`,
+      })
+      setDone(true)
+      toast('投递成功', '✓')
+      setTimeout(() => navigate('/seeker/applications'), 1000)
+    } catch (err) {
+      const message = err.message || '投递失败'
+      setError(message)
+      toast(message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <>
       <NavBar title="投递简历" />
@@ -79,10 +133,13 @@ export function SeekerApply() {
 
         <AICard title="AI 匹配提示">该岗位与你的匹配度 <b>92%</b>，建议投递。<span style={{ color: 'var(--wx-text-2)' }} onClick={() => navigate('/seeker/match/' + job.id)}>查看匹配分析 ›</span></AICard>
 
+        {error && <div className="ai-tip padx" style={{ marginTop: 12, color: 'var(--wx-red)' }}>{error}</div>}
         {done && <div className="center" style={{ padding: 20, color: 'var(--wx-green)' }}>✓ 投递成功，可在「投递记录」查看进度</div>}
       </div>
       <div className="page-foot">
-        <button className="btn btn-primary" onClick={() => { setDone(true); toast('投递成功', '✓'); setTimeout(() => navigate('/seeker/applications'), 1000) }}>确认投递</button>
+        <button className={`btn ${submitting || done ? 'btn-disabled' : 'btn-primary'}`} onClick={submitApplication}>
+          {submitting ? '提交中...' : done ? '已投递' : '确认投递'}
+        </button>
       </div>
     </>
   )
@@ -91,42 +148,80 @@ export function SeekerApply() {
 /* ============ 投递记录（含状态时间线） ============ */
 export function SeekerApplications() {
   const navigate = useNavigate()
-  const statusTag = { viewed: 'tag-blue', pending: 'tag-gray', invited: 'tag-green' }
+  const [applications, setApplications] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [expandedId, setExpandedId] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    listMyApplications({ limit: 100 })
+      .then(data => {
+        if (!alive) return
+        setApplications(data.items || [])
+        setError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setApplications([])
+        setError(err.message || '投递记录加载失败')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => { alive = false }
+  }, [])
+
   return (
     <>
       <NavBar title="投递记录" />
       <div className="page">
         <div className="ai-tip padx" style={{ paddingTop: 12 }}>⚡ 点击卡片可查看投递进度详情</div>
-        {myApplications.map(a => {
+        {loading && <div className="empty" style={{ padding: '40px 20px' }}><div className="tiny muted">正在加载投递记录...</div></div>}
+        {error && <div className="ai-tip padx" style={{ marginTop: 12, color: 'var(--wx-red)' }}>{error}</div>}
+        {!loading && !error && applications.length === 0 && (
+          <div className="empty" style={{ padding: '60px 20px' }}><div className="tiny muted">暂无真实投递记录</div></div>
+        )}
+        {!loading && !error && applications.map(a => {
           const isExpanded = expandedId === a.id
+          const statusText = applicationStatusText[a.status] || a.status
           return (
             <div key={a.id} className="job-card" onClick={() => setExpandedId(isExpanded ? null : a.id)}>
               <div className="jc-top">
-                <span className="jc-name" style={{ fontSize: 15 }}>{a.job}</span>
-                <span className={`tag ${statusTag[a.status]}`}>{a.statusText}</span>
+                <span className="jc-name" style={{ fontSize: 15 }}>{a.job_title || `岗位 #${a.job_id}`}</span>
+                <span className={`tag ${applicationStatusTag[a.status] || 'tag-gray'}`}>{statusText}</span>
               </div>
-              <div className="jc-meta"><span className="tag tag-gray">{a.company}</span><span className="tag tag-orange">{a.salary}</span></div>
+              <div className="jc-meta">
+                <span className="tag tag-gray">{a.recruiter_display_name || '认证企业'}</span>
+                {a.job_city && <span className="tag tag-gray">{a.job_city}</span>}
+              </div>
               <div className="row between tiny muted" style={{ marginTop: 6 }}>
-                <span>投递时间：{a.date}</span>
+                <span>投递时间：{formatDateTime(a.created_at)}</span>
                 <span style={{ color: 'var(--wx-green-dark)' }}>{isExpanded ? '收起 ▲' : '查看进度 ▼'}</span>
               </div>
 
               {/* 状态时间线 */}
-              {isExpanded && a.timeline && (
+              {isExpanded && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid var(--wx-line-light)' }} onClick={e => e.stopPropagation()}>
-                  {a.timeline.map((node, i) => (
-                    <div key={i} className="row" style={{ alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
-                      <span style={{ fontSize: 14, color: node.done ? 'var(--wx-green)' : 'var(--wx-text-light)', flexShrink: 0 }}>
-                        {node.done ? '●' : '○'}
-                      </span>
+                  <div className="row" style={{ alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 14, color: 'var(--wx-green)', flexShrink: 0 }}>●</span>
+                    <div className="grow">
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>已提交给招聘者</div>
+                      <div className="tiny muted">{formatDateTime(a.created_at)}</div>
+                    </div>
+                  </div>
+                  {a.status !== 'submitted' && (
+                    <div className="row" style={{ alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                      <span style={{ fontSize: 14, color: 'var(--wx-green)', flexShrink: 0 }}>●</span>
                       <div className="grow">
-                        <div style={{ fontSize: 13, color: node.done ? 'var(--wx-text)' : 'var(--wx-text-light)', fontWeight: node.done ? 500 : 400 }}>{node.node}</div>
-                        {node.time && <div className="tiny muted">{node.time}</div>}
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{statusText}</div>
+                        {a.status_updated_at && <div className="tiny muted">{formatDateTime(a.status_updated_at)}</div>}
+                        {a.reject_reason && <div className="tiny muted" style={{ marginTop: 2 }}>{a.reject_reason}</div>}
                       </div>
                     </div>
-                  ))}
-                  {a.status === 'invited' && (
+                  )}
+                  {a.status === 'interview_invited' && (
                     <button className="btn btn-primary btn-sm" style={{ marginTop: 4 }} onClick={() => navigate('/seeker/interview-prep')}>📋 AI 面试准备</button>
                   )}
                 </div>
@@ -134,7 +229,7 @@ export function SeekerApplications() {
             </div>
           )
         })}
-        <div className="empty" style={{ padding: '30px 20px' }}><div className="tiny">仅展示最近投递</div></div>
+        {!loading && !error && applications.length > 0 && <div className="empty" style={{ padding: '30px 20px' }}><div className="tiny">仅展示最近投递</div></div>}
       </div>
     </>
   )

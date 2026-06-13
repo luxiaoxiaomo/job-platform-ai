@@ -1,8 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NavBar, AIBadge, Sheet, useToast } from '../components/ui.jsx'
 import { RecruiterBottomNav } from './RecruiterBottomNav.jsx'
 import { talentPool, talentStats, getTalent, getCandidate, getTeamNotes, currentRecruiter, pickColor, resumeParsed } from '../mock/data.js'
+import { listRecruiterApplications, updateApplicationStatus } from '../services/index.js'
+import { applicationStatusTag, applicationStatusText, formatDateTime } from '../utils/applicationView.js'
 
 function getTalentResume(t) {
   const candidate = getCandidate(t.id)
@@ -44,6 +46,44 @@ export function RecruiterTalentPool() {
   const [sortBy, setSortBy] = useState('match') // match | time | name
   const [selected, setSelected] = useState(new Set())
   const [showBatch, setShowBatch] = useState(false)
+  const [applications, setApplications] = useState([])
+  const [applicationsLoading, setApplicationsLoading] = useState(true)
+  const [applicationsError, setApplicationsError] = useState('')
+  const [updatingApplicationId, setUpdatingApplicationId] = useState(null)
+
+  const loadApplications = () => {
+    setApplicationsLoading(true)
+    listRecruiterApplications({ limit: 100 })
+      .then(data => {
+        setApplications(data.items || [])
+        setApplicationsError('')
+      })
+      .catch(error => {
+        setApplications([])
+        setApplicationsError(error.message || '投递列表加载失败')
+      })
+      .finally(() => setApplicationsLoading(false))
+  }
+
+  useEffect(() => {
+    loadApplications()
+  }, [])
+
+  const changeApplicationStatus = async (applicationId, status) => {
+    setUpdatingApplicationId(applicationId)
+    try {
+      await updateApplicationStatus(applicationId, {
+        status,
+        reject_reason: status === 'rejected' ? '暂不匹配当前岗位要求' : undefined,
+      })
+      toast('投递状态已更新')
+      loadApplications()
+    } catch (error) {
+      toast(error.message || '状态更新失败')
+    } finally {
+      setUpdatingApplicationId(null)
+    }
+  }
 
   const statusLabel = { active: '活跃', passive: '一般', archived: '已归档' }
   const statusColor = { active: 'tag-green', passive: 'tag-orange', archived: 'tag-gray' }
@@ -89,6 +129,62 @@ export function RecruiterTalentPool() {
                 style={{ cursor: 'pointer', fontSize: 12 }} onClick={() => setSortBy(s.k)}>{s.l}</span>
             ))}
           </div>
+        </div>
+
+        <div className="cell-group-title">真实投递管理</div>
+        <div style={{ padding: '0 0 8px' }}>
+          {applicationsLoading && (
+            <div className="empty" style={{ padding: '24px 20px' }}><div className="tiny muted">正在加载真实投递...</div></div>
+          )}
+          {applicationsError && (
+            <div className="ai-tip padx" style={{ marginTop: 8, color: 'var(--wx-red)' }}>{applicationsError}</div>
+          )}
+          {!applicationsLoading && !applicationsError && applications.length === 0 && (
+            <div className="empty" style={{ padding: '24px 20px' }}><div className="tiny muted">暂无候选人投递</div></div>
+          )}
+          {!applicationsLoading && !applicationsError && applications.map(application => (
+            <div key={application.id} className="job-card">
+              <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                <span className="avatar" style={{ width: 40, height: 40, borderRadius: 8, background: pickColor(application.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 }}>
+                  {(application.seeker_display_name || '候')[0]}
+                </span>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="row between">
+                    <span style={{ fontWeight: 600, fontSize: 15 }}>{application.seeker_display_name || `候选人 #${application.seeker_id}`}</span>
+                    <span className={`tag ${applicationStatusTag[application.status] || 'tag-gray'}`}>{applicationStatusText[application.status] || application.status}</span>
+                  </div>
+                  <div className="tiny muted" style={{ marginTop: 4 }}>
+                    投递岗位：{application.job_title || `岗位 #${application.job_id}`} {application.job_city ? `· ${application.job_city}` : ''}
+                  </div>
+                  <div className="tiny muted" style={{ marginTop: 4 }}>投递时间：{formatDateTime(application.created_at)}</div>
+                  {application.resume_snapshot && (
+                    <div className="tiny" style={{ marginTop: 6, lineHeight: 1.6, color: 'var(--wx-text-2)' }}>{application.resume_snapshot}</div>
+                  )}
+                  {application.reject_reason && (
+                    <div className="tiny" style={{ marginTop: 6, color: 'var(--wx-red)' }}>拒绝原因：{application.reject_reason}</div>
+                  )}
+                  <div className="row gap6" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+                    {[
+                      ['viewed', '已查看'],
+                      ['interview_invited', '邀面'],
+                      ['rejected', '拒绝'],
+                      ['hired', '录用'],
+                    ].map(([status, label]) => (
+                      <button
+                        key={status}
+                        className={`btn btn-sm ${application.status === status ? 'btn-disabled' : 'btn-default'}`}
+                        disabled={updatingApplicationId === application.id || application.status === status}
+                        onClick={() => changeApplicationStatus(application.id, status)}
+                        style={{ flex: '0 0 auto' }}
+                      >
+                        {updatingApplicationId === application.id ? '处理中...' : label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* 人才卡片列表 */}

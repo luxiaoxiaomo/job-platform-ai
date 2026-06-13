@@ -1,20 +1,59 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NavBar, AIBadge, AIButton, AICard, FormCell, useToast, Switch } from '../components/ui.jsx'
 import { getFeedJob, getSeekerChat, aiMock, pickColor } from '../mock/data.js'
 import { ShareSheet } from './SeekerExtra.jsx'
 import { useProfile } from '../common/ProfileContext.jsx'
+import { listMyApplications } from '../services/index.js'
+import { findPublicJobById } from '../utils/jobView.js'
 
 /* ============ 岗位详情（查看完整信息需补充个人信息） ============ */
 export function SeekerJobDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
-  const job = getFeedJob(id) || getFeedJob('1')
+  const fallbackJob = getFeedJob(id) || getFeedJob('1')
+  const [job, setJob] = useState(fallbackJob)
+  const [jobError, setJobError] = useState('')
+  const [applied, setApplied] = useState(false)
   const { unlocked, completed, hasResume } = useProfile()
   // 如果从补信息页回来且 state 中有 unlocked 标记，使用 context 中的最新状态
   const [fav, setFav] = useState(false)
   const [showShare, setShowShare] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    findPublicJobById(id)
+      .then(realJob => {
+        if (!alive) return
+        if (realJob) {
+          setJob(realJob)
+          setJobError('')
+          return
+        }
+        setJob(fallbackJob)
+        setJobError('未找到真实公开岗位，当前显示演示岗位。')
+      })
+      .catch(error => {
+        if (!alive) return
+        setJob(fallbackJob)
+        setJobError(error.message || '公开岗位加载失败。')
+      })
+    return () => { alive = false }
+  }, [id])
+
+  useEffect(() => {
+    let alive = true
+    listMyApplications({ limit: 100 })
+      .then(data => {
+        if (!alive) return
+        setApplied((data.items || []).some(item => String(item.job_id) === String(job.id)))
+      })
+      .catch(() => {
+        if (alive) setApplied(false)
+      })
+    return () => { alive = false }
+  }, [job.id])
 
   const tryViewFull = () => {
     navigate('/seeker/profile/edit?from=job&id=' + job.id)
@@ -25,6 +64,7 @@ export function SeekerJobDetail() {
       <NavBar title="职位详情" right={<span onClick={() => setShowShare(true)}>⋯</span>} />
       {showShare && <ShareSheet title="分享职位给好友" onClose={() => setShowShare(false)} />}
       <div className="page" style={{ paddingBottom: 80 }}>
+        {jobError && <div className="ai-tip padx" style={{ paddingTop: 12, color: 'var(--wx-red)' }}>{jobError}</div>}
         <div style={{ background: '#fff', padding: 16 }}>
           <div className="row between">
             <span style={{ fontSize: 20, fontWeight: 700 }}>{job.name}</span>
@@ -98,6 +138,7 @@ export function SeekerJobDetail() {
           {!unlocked && <span className="tiny" style={{ display: 'block', color: 'var(--wx-text-light)', fontSize: 10 }}>需先完善信息</span>}
         </button>
         <button className="btn btn-primary" onClick={() => {
+          if (applied) { toast('你已经投递过这个岗位'); return }
           if (!unlocked) { toast('请先完善个人信息并上传简历', '🔒'); tryViewFull(); return }
           navigate('/seeker/apply/' + job.id)
         }}>
