@@ -59,6 +59,16 @@ async def upload_company_certification_proof_file(
     return await CompanyCertificationService.upload_proof_file(current_user, file)
 
 
+@router.get("/public/recruiters/{recruiter_id}", response_model=CompanyCertificationResponse)
+async def get_public_company_certification(
+    recruiter_id: int,
+    current_user: User = Depends(require_role("seeker")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get approved company certification for a public job recruiter."""
+    return await CompanyCertificationService.get_public_by_recruiter_id(db, recruiter_id)
+
+
 @router.get("/admin", response_model=CompanyCertificationListResponse)
 async def list_company_certifications_for_admin(
     status: Optional[str] = Query(None, description="pending/approved/rejected"),

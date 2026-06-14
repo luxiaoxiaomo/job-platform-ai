@@ -222,6 +222,49 @@ class TestCompanyCertifications:
         assert review_response.json()["status"] == "approved"
 
     @pytest.mark.asyncio
+    async def test_seeker_can_view_public_approved_company(self, client: AsyncClient, test_recruiter_data, test_user_data, db_session):
+        recruiter_token = await register_and_get_token(client, test_recruiter_data)
+        submit_response = await client.post(
+            "/api/v1/company-certifications/me",
+            json=certification_payload(),
+            headers={"Authorization": f"Bearer {recruiter_token}"},
+        )
+        certification = submit_response.json()
+        admin_token = await create_admin_token(client, db_session)
+        await client.post(
+            f"/api/v1/company-certifications/admin/{certification['id']}/review",
+            json={"action": "approve"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        seeker_token = await register_and_get_token(client, test_user_data)
+
+        response = await client.get(
+            f"/api/v1/company-certifications/public/recruiters/{certification['recruiter_id']}",
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "approved"
+        assert response.json()["company_name"] == certification_payload()["company_name"]
+
+    @pytest.mark.asyncio
+    async def test_seeker_cannot_view_pending_company_publicly(self, client: AsyncClient, test_recruiter_data, test_user_data):
+        recruiter_token = await register_and_get_token(client, test_recruiter_data)
+        submit_response = await client.post(
+            "/api/v1/company-certifications/me",
+            json=certification_payload(),
+            headers={"Authorization": f"Bearer {recruiter_token}"},
+        )
+        seeker_token = await register_and_get_token(client, test_user_data)
+
+        response = await client.get(
+            f"/api/v1/company-certifications/public/recruiters/{submit_response.json()['recruiter_id']}",
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
     async def test_reject_requires_reason(self, client: AsyncClient, test_recruiter_data, db_session):
         recruiter_token = await register_and_get_token(client, test_recruiter_data)
         submit_response = await client.post(

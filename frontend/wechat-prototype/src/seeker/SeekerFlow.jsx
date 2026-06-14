@@ -83,7 +83,7 @@ export function SeekerJobDetail() {
 
         {/* 公司（A1: 可点击查看企业画像） */}
         <div className="cell-group" style={{ marginTop: 10 }}>
-          <div className="cell link" onClick={() => navigate('/seeker/company-portrait')}>
+          <div className="cell link" onClick={() => navigate(`/seeker/company-portrait?recruiterId=${job.recruiterId || ''}`)}>
             <span className="jc-logo" style={{ marginRight: 10 }}>{job.companyShow[0]}</span>
             <div className="grow"><div style={{ fontWeight: 500 }}>{job.companyShow}</div><div className="tiny muted">{job.virtual ? '该企业使用虚拟名展示' : '已通过企业认证'}<span style={{ color: 'var(--wx-green-dark)', marginLeft: 6 }}>查看画像 ›</span></div></div>
           </div>

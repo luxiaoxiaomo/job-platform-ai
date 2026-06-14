@@ -26,6 +26,7 @@ export function mapPublicJobToView(job) {
     contactMethod: '平台内沟通',
     virtual: false,
     raw: job,
+    recruiterId: job.recruiter_id,
   }
 }
 

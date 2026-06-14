@@ -296,6 +296,16 @@ class CompanyCertificationService:
         return _to_response(certification)
 
     @staticmethod
+    async def get_public_by_recruiter_id(db: AsyncSession, recruiter_id: int) -> CompanyCertificationResponse:
+        certification = await CompanyCertificationRepository.get_by_recruiter_id(db, recruiter_id)
+        if certification is None or certification.status != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Approved company certification not found",
+            )
+        return _to_response(certification)
+
+    @staticmethod
     async def review(
         db: AsyncSession,
         certification_id: int,

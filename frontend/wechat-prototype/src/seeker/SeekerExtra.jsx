@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { NavBar, AIBadge, AICard, useToast, Sheet } from '../components/ui.jsx'
 import { RadarChart, ScoreBar } from '../components/charts.jsx'
 import { matchAnalysis, favoriteJobs, companyProfile, interviewPrep, getFeedJob, pickColor } from '../mock/data.js'
-import { createApplication, getMyResume, listMyApplications } from '../services/index.js'
+import { createApplication, getMyResume, getPublicCompanyCertification, listMyApplications } from '../services/index.js'
 import { findPublicJobById } from '../utils/jobView.js'
 import { applicationStatusTag, applicationStatusText, formatDateTime } from '../utils/applicationView.js'
 
@@ -368,21 +368,70 @@ export function SeekerInterviewPrep() {
 
 /* ============ A1: 应聘者查看企业画像（只读） ============ */
 export function SeekerCompanyView() {
-  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const recruiterId = searchParams.get('recruiterId')
   const c = companyProfile
+  const [company, setCompany] = useState(null)
+  const [loading, setLoading] = useState(!!recruiterId)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    if (!recruiterId) {
+      setLoading(false)
+      setError('未关联招聘者，无法查看真实企业画像。')
+      return
+    }
+    let alive = true
+    setLoading(true)
+    getPublicCompanyCertification(recruiterId)
+      .then(data => {
+        if (!alive) return
+        setCompany(data)
+        setError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setCompany(null)
+        setError(err.message || '企业画像加载失败')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => { alive = false }
+  }, [recruiterId])
+
+  const displayName = company?.company_name || c.name
+  const summary = company
+    ? `${company.company_name} 已通过平台企业认证。注册地址：${company.registered_address || '未填写'}。`
+    : c.oneline
+  const tags = company
+    ? [
+        { t: '企业认证通过', c: 'green' },
+        { t: company.verification_method === 'business_license' ? '营业执照认证' : '企业认证', c: 'blue' },
+        { t: company.recruiter_display_name || '招聘者', c: 'orange' },
+      ]
+    : c.tags
   return (
     <>
       <NavBar title="企业画像" />
       <div className="page">
+        {loading && <div className="empty" style={{ padding: '30px 20px' }}><div className="tiny muted">正在加载真实企业画像...</div></div>}
+        {error && <div className="ai-tip padx" style={{ paddingTop: 12, color: 'var(--wx-red)' }}>{error}</div>}
         <div className="portrait-hd">
-          <div className="ph-name">{c.name}</div>
-          <span className="ph-level">⚡ AI 生成的企业画像</span>
+          <div className="ph-name">{displayName}</div>
+          <span className="ph-level">{company ? '已通过平台企业认证' : '演示企业画像'}</span>
         </div>
-        <AICard title="AI 企业画像总结" tip="AI 基于企业信息与岗位数据生成">{c.oneline}</AICard>
+        <AICard title="企业画像摘要" tip={company ? '基于企业认证信息生成' : '演示数据'}>{summary}</AICard>
+        {company && (
+          <div className="cell-group">
+            <div className="cell"><span className="cell-label">统一社会信用代码</span><span className="cell-value">{company.unified_social_credit_code || '-'}</span></div>
+            <div className="cell"><span className="cell-label">法定代表人</span><span className="cell-value">{company.legal_representative || '-'}</span></div>
+            <div className="cell"><span className="cell-label">注册地址</span><span className="cell-value">{company.registered_address || '-'}</span></div>
+          </div>
+        )}
         <div className="cell-group-title">企业标签</div>
         <div className="cell-group"><div style={{ padding: 16 }}>
           <div className="tagcloud">
-            {c.tags.map(t => <span key={t.t} className={`tag ${({green:'tag-green',blue:'tag-blue',orange:'tag-orange'})[t.c]}`} style={{ fontSize: 13, padding: '5px 12px' }}>{t.t}</span>)}
+            {tags.map(t => <span key={t.t} className={`tag ${({green:'tag-green',blue:'tag-blue',orange:'tag-orange'})[t.c]}`} style={{ fontSize: 13, padding: '5px 12px' }}>{t.t}</span>)}
           </div>
         </div></div>
         <div className="cell-group-title">企业维度评分</div>

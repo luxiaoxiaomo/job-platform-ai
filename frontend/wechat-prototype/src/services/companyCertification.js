@@ -20,6 +20,10 @@ export async function uploadCertificationProofFile(file) {
   return postForm('/api/v1/company-certifications/proof-file', formData)
 }
 
+export async function getPublicCompanyCertification(recruiterId) {
+  return get(`/api/v1/company-certifications/public/recruiters/${recruiterId}`)
+}
+
 export async function listCompanyCertifications(params = {}) {
   return get('/api/v1/company-certifications/admin', params)
 }
