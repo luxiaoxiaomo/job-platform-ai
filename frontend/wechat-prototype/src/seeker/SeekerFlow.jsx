@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NavBar, AIBadge, AIButton, AICard, FormCell, useToast, Switch } from '../components/ui.jsx'
 import { getFeedJob, getSeekerChat, aiMock, pickColor } from '../mock/data.js'
 import { ShareSheet } from './SeekerExtra.jsx'
 import { useProfile } from '../common/ProfileContext.jsx'
-import { listMyApplications } from '../services/index.js'
+import { listMyApplications, uploadResume } from '../services/index.js'
 import { findPublicJobById } from '../utils/jobView.js'
 
 /* ============ 岗位详情（查看完整信息需补充个人信息） ============ */
@@ -235,13 +235,34 @@ function PubCell({ label, req, value, on, onToggle }) {
 function ResumeUploadInline({ hasResume }) {
   const { markResume } = useProfile()
   const navigate = useNavigate()
+  const toast = useToast()
+  const fileInputRef = useRef(null)
   const [stage, setStage] = useState(hasResume ? 'done' : 'idle') // idle | uploading | parsing | done
+  const [resumeName, setResumeName] = useState('')
+  const [error, setError] = useState('')
 
   const startUpload = () => {
+    fileInputRef.current?.click()
+  }
+
+  const onFileChange = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
     setStage('uploading')
-    // mock 选择文件后立即进入解析
-    setTimeout(() => setStage('parsing'), 600)
-    setTimeout(() => { setStage('done'); markResume() }, 2400)
+    setError('')
+    try {
+      const uploaded = await uploadResume(file)
+      setResumeName(uploaded.file_name)
+      markResume(uploaded)
+      setStage('done')
+      toast('简历已上传', '✓')
+    } catch (err) {
+      setError(err.message || '简历上传失败')
+      setStage(hasResume ? 'done' : 'idle')
+      toast(err.message || '简历上传失败')
+    }
   }
 
   return (
@@ -249,13 +270,20 @@ function ResumeUploadInline({ hasResume }) {
       <div className="cell-group-title">简历（必传）</div>
       <div className="cell-group">
         <div style={{ padding: 14 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.bmp"
+            style={{ display: 'none' }}
+            onChange={onFileChange}
+          />
           {stage === 'idle' && (
             <div onClick={startUpload}
               style={{ border: '1.5px dashed var(--wx-line)', borderRadius: 10, padding: '18px 14px', textAlign: 'center', cursor: 'pointer', background: '#FAFAFA' }}>
               <div style={{ fontSize: 28, marginBottom: 6 }}>📄</div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>上传简历</div>
-              <div className="tiny muted" style={{ marginTop: 2 }}>支持 PDF / 图片，AI 自动解析并填充能力信息</div>
-              <AIBadge soft>AI 解析</AIBadge>
+              <div className="tiny muted" style={{ marginTop: 2 }}>支持 PDF / Word / Excel / 图片，上传后生成投递快照</div>
+              <AIBadge soft>规则解析</AIBadge>
             </div>
           )}
           {stage === 'uploading' && (
@@ -264,29 +292,23 @@ function ResumeUploadInline({ hasResume }) {
               <div style={{ fontSize: 13, marginTop: 4 }}>上传中…</div>
             </div>
           )}
-          {stage === 'parsing' && (
-            <div style={{ border: '1.5px dashed var(--wx-green)', borderRadius: 10, padding: '18px 14px', textAlign: 'center', background: 'var(--ai-bg)' }}>
-              <span className="spin" style={{ width: 20, height: 20, display: 'inline-block' }} />
-              <div style={{ fontSize: 13, marginTop: 4, color: 'var(--wx-green-dark)' }}>AI 正在解析简历…</div>
-              <div className="tiny muted" style={{ marginTop: 2 }}>提取基本信息 / 工作经历 / 技能</div>
-            </div>
-          )}
           {stage === 'done' && (
             <div style={{ border: '1.5px solid var(--wx-green)', borderRadius: 10, padding: '14px', background: 'var(--ai-bg)' }}>
               <div className="row between">
-                <span style={{ fontSize: 14, color: 'var(--wx-green-dark)' }}>✅ 简历已上传并解析</span>
+                <span style={{ fontSize: 14, color: 'var(--wx-green-dark)' }}>✅ 简历已上传</span>
                 <span className="tiny" style={{ color: 'var(--wx-green-dark)', cursor: 'pointer', textDecoration: 'underline' }}
                   onClick={() => navigate('/seeker/portrait')}>查看画像 ›</span>
               </div>
-              <div className="tiny muted" style={{ marginTop: 4 }}>李然 · 5年前端 · React/TypeScript/Node.js</div>
+              <div className="tiny muted" style={{ marginTop: 4 }}>{resumeName || '已保存到后端，可用于投递'}</div>
               <div className="row gap6" style={{ marginTop: 6 }}>
                 <span className="tag tag-green" style={{ fontSize: 11 }}>React</span>
                 <span className="tag tag-green" style={{ fontSize: 11 }}>TypeScript</span>
                 <span className="tag tag-green" style={{ fontSize: 11 }}>前端工程化</span>
-                <span className="ai-badge soft" style={{ fontSize: 10 }}>AI解析</span>
+                <span className="ai-badge soft" style={{ fontSize: 10 }}>规则解析</span>
               </div>
             </div>
           )}
+          {error && <div className="ai-tip" style={{ marginTop: 10, color: 'var(--wx-red)' }}>{error}</div>}
         </div>
       </div>
     </>

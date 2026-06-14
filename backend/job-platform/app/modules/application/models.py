@@ -32,6 +32,12 @@ class JobApplication(Base):
         nullable=False,
         comment="Recruiter user ID",
     )
+    resume_id = Column(
+        Integer,
+        ForeignKey("seeker_resumes.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Resume ID at submission time",
+    )
 
     status = Column(
         String(30),
@@ -40,6 +46,8 @@ class JobApplication(Base):
         comment="submitted/viewed/interview_invited/rejected/hired",
     )
     resume_snapshot = Column(Text, nullable=True, comment="Resume snapshot at submission time")
+    resume_file_url = Column(String(500), nullable=True, comment="Resume file URL at submission time")
+    resume_file_name = Column(String(255), nullable=True, comment="Resume file name at submission time")
     cover_message = Column(Text, nullable=True, comment="Seeker cover message")
     reject_reason = Column(Text, nullable=True, comment="Recruiter reject reason")
 
@@ -57,6 +65,7 @@ class JobApplication(Base):
     job = relationship("Job")
     seeker = relationship("User", foreign_keys=[seeker_id])
     recruiter = relationship("User", foreign_keys=[recruiter_id])
+    resume = relationship("SeekerResume")
 
     __table_args__ = (
         UniqueConstraint("job_id", "seeker_id", name="uq_job_applications_job_seeker"),

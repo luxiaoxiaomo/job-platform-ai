@@ -1,24 +1,42 @@
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { getMyResume } from '../services/index.js'
 
-/* ============================================================
-   应聘者补充信息状态（mock 后端状态）
-   - completed: 必填字段是否已填（基本信息 + 联系方式）
-   - hasResume: 是否已上传简历
-   - unlocked: 是否满足"查看完整信息 + 投递"的前置条件
-   ============================================================ */
 const ProfileCtx = createContext(null)
 
 export function ProfileProvider({ children }) {
-  const [completed, setCompleted] = useState(false)   // 必填项已填
-  const [hasResume, setHasResume] = useState(false)   // 已上传简历
-  // unlocked = completed && hasResume（两个条件都满足才能解锁）
+  const [completed, setCompleted] = useState(false)
+  const [hasResume, setHasResume] = useState(false)
+  const [resume, setResume] = useState(null)
   const unlocked = completed && hasResume
 
+  const refreshResume = async () => {
+    const token = localStorage.getItem('access_token')
+    const userInfo = localStorage.getItem('user_info')
+    if (!token || !userInfo) return null
+    const user = JSON.parse(userInfo)
+    if (user.role !== 'seeker') return null
+
+    const data = await getMyResume()
+    setHasResume(!!data.has_resume)
+    setResume(data.resume || null)
+    return data.resume || null
+  }
+
+  useEffect(() => {
+    refreshResume().catch(() => {
+      setHasResume(false)
+      setResume(null)
+    })
+  }, [])
+
   const markCompleted = () => setCompleted(true)
-  const markResume = () => setHasResume(true)
+  const markResume = (nextResume = null) => {
+    setHasResume(true)
+    if (nextResume) setResume(nextResume)
+  }
 
   return (
-    <ProfileCtx.Provider value={{ completed, hasResume, unlocked, markCompleted, markResume }}>
+    <ProfileCtx.Provider value={{ completed, hasResume, resume, unlocked, markCompleted, markResume, refreshResume }}>
       {children}
     </ProfileCtx.Provider>
   )

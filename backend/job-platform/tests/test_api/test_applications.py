@@ -28,6 +28,16 @@ async def create_active_job(
     return recruiter_token, job_id
 
 
+async def upload_resume(client: AsyncClient, seeker_token: str) -> dict:
+    response = await client.post(
+        "/api/v1/resumes/me/upload",
+        files={"file": ("resume.pdf", b"fake resume content", "application/pdf")},
+        headers={"Authorization": f"Bearer {seeker_token}"},
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
 class TestApplications:
     async def test_seeker_can_apply_to_active_job(
         self,
@@ -38,6 +48,7 @@ class TestApplications:
     ):
         recruiter_token, job_id = await create_active_job(client, db_session, test_recruiter_data)
         seeker_token = await register_and_get_token(client, test_user_data)
+        resume = await upload_resume(client, seeker_token)
 
         response = await client.post(
             "/api/v1/applications",
@@ -54,6 +65,9 @@ class TestApplications:
         assert data["job_id"] == job_id
         assert data["status"] == "submitted"
         assert data["cover_message"] == "I am interested in this role."
+        assert data["resume_id"] == resume["id"]
+        assert data["resume_file_url"] == resume["file_url"]
+        assert data["resume_snapshot"] == resume["parsed_snapshot"]
 
         my_response = await client.get(
             "/api/v1/applications/me",
@@ -94,6 +108,25 @@ class TestApplications:
         assert response.status_code == 400
         assert "active" in response.json()["detail"].lower()
 
+    async def test_seeker_cannot_apply_without_resume(
+        self,
+        client: AsyncClient,
+        db_session,
+        test_recruiter_data,
+        test_user_data,
+    ):
+        _, job_id = await create_active_job(client, db_session, test_recruiter_data)
+        seeker_token = await register_and_get_token(client, test_user_data)
+
+        response = await client.post(
+            "/api/v1/applications",
+            json={"job_id": job_id},
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+
+        assert response.status_code == 400
+        assert "resume" in response.json()["detail"].lower()
+
     async def test_seeker_cannot_apply_twice(
         self,
         client: AsyncClient,
@@ -103,6 +136,7 @@ class TestApplications:
     ):
         _, job_id = await create_active_job(client, db_session, test_recruiter_data)
         seeker_token = await register_and_get_token(client, test_user_data)
+        await upload_resume(client, seeker_token)
 
         first = await client.post(
             "/api/v1/applications",
@@ -127,6 +161,7 @@ class TestApplications:
     ):
         recruiter_token, job_id = await create_active_job(client, db_session, test_recruiter_data)
         seeker_token = await register_and_get_token(client, test_user_data)
+        await upload_resume(client, seeker_token)
         apply_response = await client.post(
             "/api/v1/applications",
             json={"job_id": job_id},
@@ -154,6 +189,7 @@ class TestApplications:
     ):
         _, job_id = await create_active_job(client, db_session, test_recruiter_data)
         seeker_token = await register_and_get_token(client, test_user_data)
+        await upload_resume(client, seeker_token)
         apply_response = await client.post(
             "/api/v1/applications",
             json={"job_id": job_id},
@@ -186,6 +222,7 @@ class TestApplications:
     ):
         recruiter_token, job_id = await create_active_job(client, db_session, test_recruiter_data)
         seeker_token = await register_and_get_token(client, test_user_data)
+        await upload_resume(client, seeker_token)
         apply_response = await client.post(
             "/api/v1/applications",
             json={"job_id": job_id},

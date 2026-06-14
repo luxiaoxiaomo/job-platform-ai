@@ -16,6 +16,7 @@ from app.modules.application.schemas import (
     ApplicationStatusUpdate,
 )
 from app.modules.job.repository import JobRepository
+from app.modules.resume.repository import ResumeRepository
 from app.modules.user.models import User
 
 
@@ -36,6 +37,9 @@ def _to_response(application: JobApplication) -> ApplicationResponse:
         seeker_display_name=seeker.display_name if seeker else None,
         recruiter_id=application.recruiter_id,
         recruiter_display_name=recruiter.display_name if recruiter else None,
+        resume_id=application.resume_id,
+        resume_file_url=application.resume_file_url,
+        resume_file_name=application.resume_file_name,
         status=application.status,
         resume_snapshot=application.resume_snapshot,
         cover_message=application.cover_message,
@@ -64,14 +68,20 @@ class ApplicationService:
         existing = await ApplicationRepository.get_by_job_and_seeker(db, data.job_id, current_user.id)
         if existing is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You have already applied to this job")
+        resume = await ResumeRepository.get_by_seeker_id(db, current_user.id)
+        if resume is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please upload a resume before applying")
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         application = JobApplication(
             job_id=job.id,
             seeker_id=current_user.id,
             recruiter_id=job.recruiter_id,
+            resume_id=resume.id,
             status="submitted",
-            resume_snapshot=data.resume_snapshot,
+            resume_snapshot=resume.parsed_snapshot,
+            resume_file_url=resume.file_url,
+            resume_file_name=resume.file_name,
             cover_message=data.cover_message,
             status_updated_at=now,
         )

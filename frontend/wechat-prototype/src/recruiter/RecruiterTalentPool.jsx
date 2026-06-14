@@ -160,6 +160,11 @@ export function RecruiterTalentPool() {
                   {application.resume_snapshot && (
                     <div className="tiny" style={{ marginTop: 6, lineHeight: 1.6, color: 'var(--wx-text-2)' }}>{application.resume_snapshot}</div>
                   )}
+                  {application.resume_file_name && (
+                    <div className="tiny" style={{ marginTop: 6, color: 'var(--wx-green-dark)' }}>
+                      简历文件：{application.resume_file_name}
+                    </div>
+                  )}
                   {application.reject_reason && (
                     <div className="tiny" style={{ marginTop: 6, color: 'var(--wx-red)' }}>拒绝原因：{application.reject_reason}</div>
                   )}

@@ -16,6 +16,7 @@ from app.modules.user.models import User  # noqa
 from app.modules.company_certification.models import CompanyCertification  # noqa
 from app.modules.job.models import Job  # noqa
 from app.modules.application.models import JobApplication  # noqa
+from app.modules.resume.models import SeekerResume  # noqa
 
 # this is the Alembic Config object
 config = context.config

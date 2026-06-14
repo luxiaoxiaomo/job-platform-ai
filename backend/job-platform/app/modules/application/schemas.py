@@ -46,6 +46,9 @@ class ApplicationResponse(BaseModel):
     seeker_display_name: Optional[str] = None
     recruiter_id: int
     recruiter_display_name: Optional[str] = None
+    resume_id: Optional[int] = None
+    resume_file_url: Optional[str] = None
+    resume_file_name: Optional[str] = None
     status: ApplicationStatus
     resume_snapshot: Optional[str] = None
     cover_message: Optional[str] = None

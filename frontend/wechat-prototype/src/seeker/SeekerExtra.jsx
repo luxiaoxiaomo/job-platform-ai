@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { NavBar, AIBadge, AICard, useToast, Sheet } from '../components/ui.jsx'
 import { RadarChart, ScoreBar } from '../components/charts.jsx'
 import { matchAnalysis, favoriteJobs, companyProfile, interviewPrep, getFeedJob, pickColor } from '../mock/data.js'
-import { createApplication, listMyApplications } from '../services/index.js'
+import { createApplication, getMyResume, listMyApplications } from '../services/index.js'
 import { findPublicJobById } from '../utils/jobView.js'
 import { applicationStatusTag, applicationStatusText, formatDateTime } from '../utils/applicationView.js'
 
@@ -64,6 +64,8 @@ export function SeekerApply() {
   const [job, setJob] = useState(fallbackJob)
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [resumeLoading, setResumeLoading] = useState(true)
+  const [resume, setResume] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -87,8 +89,32 @@ export function SeekerApply() {
     return () => { alive = false }
   }, [id])
 
+  useEffect(() => {
+    let alive = true
+    setResumeLoading(true)
+    getMyResume()
+      .then(data => {
+        if (!alive) return
+        setResume(data.resume || null)
+      })
+      .catch(err => {
+        if (!alive) return
+        setResume(null)
+        setError(err.message || '简历状态加载失败')
+      })
+      .finally(() => {
+        if (alive) setResumeLoading(false)
+      })
+    return () => { alive = false }
+  }, [])
+
   const submitApplication = async () => {
     if (submitting || done) return
+    if (!resume) {
+      toast('请先上传简历')
+      navigate('/seeker/resume')
+      return
+    }
     if (!Number(id)) {
       setError('当前岗位不是后端真实岗位，不能提交投递。')
       return
@@ -98,7 +124,6 @@ export function SeekerApply() {
     try {
       await createApplication({
         job_id: Number(id),
-        resume_snapshot: '李然（虚拟名）｜5年｜前端开发｜本科｜期望薪资 22K-30K',
         cover_message: `申请岗位：${job.name}`,
       })
       setDone(true)
@@ -125,10 +150,17 @@ export function SeekerApply() {
 
         <div className="cell-group-title">将投递以下简历</div>
         <div className="cell-group">
-          <div className="cell"><span className="cell-label">姓名</span><span className="cell-value">李然（虚拟名）</span></div>
-          <div className="cell"><span className="cell-label">经验</span><span className="cell-value">5年 · 前端开发</span></div>
-          <div className="cell"><span className="cell-label">学历</span><span className="cell-value">本科</span></div>
-          <div className="cell"><span className="cell-label">期望薪资</span><span className="cell-value">22K-30K</span></div>
+          {resumeLoading && <div className="cell"><span className="cell-label">简历</span><span className="cell-value">加载中...</span></div>}
+          {!resumeLoading && resume && (<>
+            <div className="cell"><span className="cell-label">简历文件</span><span className="cell-value">{resume.file_name}</span></div>
+            <div className="cell"><span className="cell-label">投递快照</span><span className="cell-value">{resume.parsed_snapshot}</span></div>
+          </>)}
+          {!resumeLoading && !resume && (
+            <div className="cell">
+              <span className="cell-label">简历</span>
+              <span className="cell-value" style={{ color: 'var(--wx-red)' }}>未上传</span>
+            </div>
+          )}
         </div>
 
         <AICard title="AI 匹配提示">该岗位与你的匹配度 <b>92%</b>，建议投递。<span style={{ color: 'var(--wx-text-2)' }} onClick={() => navigate('/seeker/match/' + job.id)}>查看匹配分析 ›</span></AICard>
@@ -138,7 +170,7 @@ export function SeekerApply() {
       </div>
       <div className="page-foot">
         <button className={`btn ${submitting || done ? 'btn-disabled' : 'btn-primary'}`} onClick={submitApplication}>
-          {submitting ? '提交中...' : done ? '已投递' : '确认投递'}
+          {submitting ? '提交中...' : done ? '已投递' : resume ? '确认投递' : '去上传简历'}
         </button>
       </div>
     </>
