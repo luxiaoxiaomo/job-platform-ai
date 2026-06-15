@@ -59,6 +59,25 @@ class ApplicationResponse(BaseModel):
     updated_at: datetime
 
 
+class ApplicationTimelineResponse(BaseModel):
+    """Application status timeline response."""
+
+    id: int
+    application_id: int
+    from_status: Optional[ApplicationStatus] = None
+    to_status: ApplicationStatus
+    actor_id: Optional[int] = None
+    actor_role: str
+    note: Optional[str] = None
+    created_at: datetime
+
+
+class ApplicationDetailResponse(ApplicationResponse):
+    """Application detail response."""
+
+    timeline: list[ApplicationTimelineResponse] = Field(default_factory=list)
+
+
 class ApplicationListResponse(BaseModel):
     """Paginated application list response."""
 

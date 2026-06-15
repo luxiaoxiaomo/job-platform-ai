@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AIBadge,
   AICard,
@@ -42,15 +42,21 @@ const verificationMethods = [
 
 export function RecruiterApp() {
   const [searchParams] = useSearchParams()
-  const initialTab = searchParams.get('tab') || 'jobs'
+  const validTabs = new Set(['jobs', 'talent', 'messages', 'profile'])
+  const initialTab = validTabs.has(searchParams.get('tab')) ? searchParams.get('tab') : 'jobs'
   const [tab, setTab] = useState(initialTab)
   const navigate = useNavigate()
   const totalUnread = recruiterChats.reduce((sum, item) => sum + item.unread, 0)
 
   useEffect(() => {
-    const urlTab = searchParams.get('tab')
-    if (urlTab && urlTab !== tab) setTab(urlTab)
-  }, [searchParams, tab])
+    const nextTab = validTabs.has(searchParams.get('tab')) ? searchParams.get('tab') : 'jobs'
+    setTab(current => current === nextTab ? current : nextTab)
+  }, [searchParams])
+
+  const handleTabChange = (nextTab) => {
+    setTab(nextTab)
+    navigate(nextTab === 'jobs' ? '/recruiter/jobs' : `/recruiter/jobs?tab=${nextTab}`, { replace: true })
+  }
 
   const tabs = [
     { key: 'jobs', label: '岗位', icon: '📋' },
@@ -65,7 +71,7 @@ export function RecruiterApp() {
       {tab === 'talent' && <TalentEntry />}
       {tab === 'messages' && <MsgList onOpen={(id) => navigate('/recruiter/chat/' + id)} />}
       {tab === 'profile' && <Profile />}
-      <TabBar tabs={tabs} active={tab} onChange={setTab} />
+      <TabBar tabs={tabs} active={tab} onChange={handleTabChange} />
     </>
   )
 }
@@ -210,7 +216,7 @@ function JobList({ onCreate }) {
 
         {sorted.map(job => (
           <div key={job.id} className="job-card">
-            <div className="jc-top" onClick={() => job.status === 'pending' ? navigate('/recruiter/job/review') : job.status === 'online' ? navigate('/recruiter/job/visitors/' + job.id) : navigate('/recruiter/stats')}>
+            <div className="jc-top" onClick={() => navigate('/recruiter/jobs/' + job.id, { state: { job } })}>
               <span className="jc-name">{job.name}</span>
               <StatusBadge status={job.status} />
             </div>
@@ -263,6 +269,16 @@ function mapApiJobToCard(job) {
     city: job.city,
     salary: `${job.salary_min}K-${job.salary_max}K`,
     status: job.status === 'active' ? 'online' : job.status,
+    apiStatus: job.status,
+    experience: job.experience,
+    education: job.education,
+    description: job.description,
+    requirement: job.requirement,
+    benefits: job.benefits,
+    tags: job.tags || [],
+    rejectReason: job.reject_reason,
+    reviewedAt: job.reviewed_at,
+    publishedAt: job.published_at,
     views: 0,
     uv: 0,
     msgs: 0,
@@ -271,6 +287,135 @@ function mapApiJobToCard(job) {
       ? '已提交审核，审核通过后会对求职者可见。'
       : '岗位已通过审核，可继续观察浏览与留言数据。',
   }
+}
+
+const jobDetailStatus = {
+  online: { text: '已上线', tag: 'tag-green' },
+  active: { text: '已上线', tag: 'tag-green' },
+  pending: { text: '审核中', tag: 'tag-blue' },
+  draft: { text: '草稿', tag: 'tag-gray' },
+  closed: { text: '已关闭', tag: 'tag-gray' },
+  rejected: { text: '已驳回', tag: 'tag-red' },
+}
+
+function normalizeJobDetail(job) {
+  if (!job) return null
+  return job.name ? job : mapApiJobToCard(job)
+}
+
+export function RecruiterJobDetail() {
+  const { jobId } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const toast = useToast()
+  const [job, setJob] = useState(normalizeJobDetail(location.state?.job))
+  const [loading, setLoading] = useState(!location.state?.job)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (job) return
+    setLoading(true)
+    listMyJobs({ limit: 100 })
+      .then(data => {
+        const found = (data.items || []).find(item => String(item.id) === String(jobId))
+        if (!found) {
+          setError('未找到该岗位，可能不是当前招聘者发布的岗位。')
+          return
+        }
+        setJob(normalizeJobDetail(found))
+        setError('')
+      })
+      .catch(err => setError(err.message || '岗位详情加载失败'))
+      .finally(() => setLoading(false))
+  }, [job, jobId])
+
+  const meta = jobDetailStatus[job?.status] || jobDetailStatus[job?.apiStatus] || { text: job?.status || '未知', tag: 'tag-gray' }
+  const tagList = Array.isArray(job?.tags) ? job.tags : []
+
+  return (
+    <>
+      <NavBar title="岗位详情" />
+      <div className="page">
+        {loading && (
+          <div className="empty" style={{ padding: '60px 20px' }}>
+            <div className="tiny muted">正在加载岗位详情...</div>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="ai-tip" style={{ margin: 16, color: 'var(--wx-red)' }}>{error}</div>
+        )}
+
+        {!loading && job && (
+          <>
+            <div className="job-card">
+              <div className="row between" style={{ alignItems: 'flex-start', gap: 12 }}>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.35 }}>{job.name}</div>
+                  <div className="row gap6" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+                    <span className={`tag ${meta.tag}`}>{meta.text}</span>
+                    <span className="tag tag-gray">{job.city || '城市未填'}</span>
+                    <span className="tag tag-orange">{job.salary || '薪资未填'}</span>
+                  </div>
+                </div>
+              </div>
+              {job.rejectReason && (
+                <div className="ai-tip" style={{ marginTop: 10, color: 'var(--wx-red)' }}>
+                  驳回原因：{job.rejectReason}
+                </div>
+              )}
+            </div>
+
+            <div className="cell-group-title">岗位要求</div>
+            <CellGroup>
+              <Cell label="经验要求" value={job.experience || '未填写'} />
+              <Cell label="学历要求" value={job.education || '未填写'} />
+              <Cell label="发布时间" value={job.date || '未记录'} />
+            </CellGroup>
+
+            <div className="cell-group-title">岗位职责</div>
+            <div className="cell-group">
+              <div style={{ padding: '12px 16px', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {job.description || job.insight || '暂无岗位职责'}
+              </div>
+            </div>
+
+            <div className="cell-group-title">任职要求</div>
+            <div className="cell-group">
+              <div style={{ padding: '12px 16px', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {job.requirement || '暂无任职要求'}
+              </div>
+            </div>
+
+            {job.benefits && (
+              <>
+                <div className="cell-group-title">福利待遇</div>
+                <div className="cell-group">
+                  <div style={{ padding: '12px 16px', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{job.benefits}</div>
+                </div>
+              </>
+            )}
+
+            {tagList.length > 0 && (
+              <>
+                <div className="cell-group-title">岗位标签</div>
+                <div className="cell-group">
+                  <div className="tagcloud" style={{ padding: '12px 16px' }}>
+                    {tagList.map(tag => <span key={tag} className="tag tag-green">{tag}</span>)}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="btn-block-wrap row gap12">
+              <button className="btn btn-default" onClick={() => navigate('/recruiter/jobs')}>返回岗位列表</button>
+              <button className="btn btn-primary" onClick={() => navigate('/recruiter/talent')}>查看投递</button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  )
 }
 
 function MsgList({ onOpen }) {
@@ -335,7 +480,7 @@ function Profile() {
         </div>
 
         <CellGroup>
-          <Cell icon="📋" iconBg="#ECF9F1" label="我的岗位" value="3 在线 · 2 审核中" link onClick={() => navigate('/recruiter/jobs')} />
+          <Cell icon="📋" iconBg="#ECF9F1" label="我的岗位" value="3 在线 · 2 审核中" link onClick={() => navigate('/recruiter/jobs?tab=jobs')} />
           <Cell icon="👥" iconBg="#E8F5FF" label="人才池" value="21 人" link onClick={() => navigate('/recruiter/talent')} />
           <Cell icon="📅" iconBg="#FFF3E6" label="面试管理" value="2 待面试" link onClick={() => navigate('/recruiter/interviews')} />
           <Cell icon="📊" iconBg="#FFF3E6" label="候选人分析" value="8 人" link onClick={() => navigate('/recruiter/candidate')} />

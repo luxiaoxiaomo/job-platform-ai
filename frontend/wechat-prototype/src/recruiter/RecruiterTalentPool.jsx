@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { NavBar, AIBadge, Sheet, useToast } from '../components/ui.jsx'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Cell, CellGroup, NavBar, AIBadge, Sheet, useToast } from '../components/ui.jsx'
 import { RecruiterBottomNav } from './RecruiterBottomNav.jsx'
 import { talentPool, talentStats, getTalent, getCandidate, getTeamNotes, currentRecruiter, pickColor, resumeParsed } from '../mock/data.js'
-import { listRecruiterApplications, updateApplicationStatus } from '../services/index.js'
+import {
+  fetchRecruiterApplicationResumeFile,
+  getRecruiterApplication,
+  listRecruiterApplications,
+  updateApplicationStatus,
+} from '../services/index.js'
 import { applicationStatusTag, applicationStatusText, formatDateTime } from '../utils/applicationView.js'
 
 function getTalentResume(t) {
@@ -143,7 +148,12 @@ export function RecruiterTalentPool() {
             <div className="empty" style={{ padding: '24px 20px' }}><div className="tiny muted">暂无候选人投递</div></div>
           )}
           {!applicationsLoading && !applicationsError && applications.map(application => (
-            <div key={application.id} className="job-card">
+            <div
+              key={application.id}
+              className="job-card"
+              style={{ cursor: 'pointer' }}
+              onClick={() => navigate('/recruiter/applications/' + application.id, { state: { application } })}
+            >
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
                 <span className="avatar" style={{ width: 40, height: 40, borderRadius: 8, background: pickColor(application.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 }}>
                   {(application.seeker_display_name || '候')[0]}
@@ -179,7 +189,10 @@ export function RecruiterTalentPool() {
                         key={status}
                         className={`btn btn-sm ${application.status === status ? 'btn-disabled' : 'btn-default'}`}
                         disabled={updatingApplicationId === application.id || application.status === status}
-                        onClick={() => changeApplicationStatus(application.id, status)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          changeApplicationStatus(application.id, status)
+                        }}
                         style={{ flex: '0 0 auto' }}
                       >
                         {updatingApplicationId === application.id ? '处理中...' : label}
@@ -193,6 +206,10 @@ export function RecruiterTalentPool() {
         </div>
 
         {/* 人才卡片列表 */}
+        <div className="cell-group-title">演示人才池（Mock 数据）</div>
+        <div className="ai-tip" style={{ marginTop: 0 }}>
+          以下卡片仍是原型演示数据，不来自数据库投递记录；真实投递请以上方“真实投递管理”为准。
+        </div>
         <div style={{ padding: '10px 0' }}>
           {list.map(t => (
             <div key={t.id} className="job-card" style={{ position: 'relative', cursor: 'pointer' }}
@@ -203,7 +220,7 @@ export function RecruiterTalentPool() {
                 <div className="grow" style={{ overflow: 'hidden' }}>
                   <div className="row between">
                     <span style={{ fontWeight: 600, fontSize: 15 }}>{t.name}{t.virtual && <span className="tag tag-gray" style={{ marginLeft: 4, fontSize: 10 }}>虚拟</span>}</span>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--wx-green)' }}>{t.matchAvg}<span style={{ fontSize: 11, fontWeight: 400 }}>%</span></span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--wx-green)' }}>{t.matchAvg}<span style={{ fontSize: 11, fontWeight: 400 }}>%</span><span className="tag tag-gray" style={{ marginLeft: 4, fontSize: 10 }}>演示</span></span>
                   </div>
                   <div className="row gap6" style={{ marginTop: 4, flexWrap: 'wrap' }}>
                     <span className={`tag ${statusColor[t.status]}`} style={{ fontSize: 10 }}>{statusLabel[t.status]} {emotionEmoji[t.emotion]}</span>
@@ -243,6 +260,211 @@ export function RecruiterTalentPool() {
         )}
       </div>
       <RecruiterBottomNav />
+    </>
+  )
+}
+
+export function RecruiterApplicationDetail() {
+  const { applicationId } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const toast = useToast()
+  const [application, setApplication] = useState(location.state?.application || null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [updating, setUpdating] = useState(false)
+  const [fileLoading, setFileLoading] = useState(false)
+
+  const loadApplication = () => {
+    setLoading(true)
+    getRecruiterApplication(applicationId)
+      .then(data => {
+        setApplication(data)
+        setError('')
+      })
+      .catch(err => {
+        setError(err.message || '投递详情加载失败')
+      })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadApplication()
+  }, [applicationId])
+
+  const changeStatus = async (status) => {
+    setUpdating(true)
+    try {
+      await updateApplicationStatus(applicationId, {
+        status,
+        reject_reason: status === 'rejected' ? '暂不匹配当前岗位要求' : undefined,
+      })
+      toast('投递状态已更新')
+      loadApplication()
+    } catch (err) {
+      toast(err.message || '状态更新失败')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const openResumeFile = async (mode) => {
+    setFileLoading(true)
+    try {
+      const { blob, fileName } = await fetchRecruiterApplicationResumeFile(applicationId)
+      const url = URL.createObjectURL(blob)
+      if (mode === 'download') {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = application?.resume_file_name || fileName
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (err) {
+      toast(err.message || '简历文件获取失败')
+    } finally {
+      setFileLoading(false)
+    }
+  }
+
+  const timeline = application?.timeline || []
+  const statusText = applicationStatusText[application?.status] || application?.status || '未知'
+  const statusTag = applicationStatusTag[application?.status] || 'tag-gray'
+
+  return (
+    <>
+      <NavBar title="投递详情" />
+      <div className="page">
+        {loading && !application && (
+          <div className="empty" style={{ padding: '60px 20px' }}>
+            <div className="tiny muted">正在加载投递详情...</div>
+          </div>
+        )}
+
+        {error && (
+          <div className="ai-tip" style={{ margin: 16, color: 'var(--wx-red)' }}>{error}</div>
+        )}
+
+        {application && (
+          <>
+            <div className="job-card">
+              <div className="row between" style={{ alignItems: 'flex-start', gap: 12 }}>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="row gap8" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, fontSize: 18 }}>{application.seeker_display_name || `候选人 #${application.seeker_id}`}</span>
+                    <span className={`tag ${statusTag}`}>{statusText}</span>
+                  </div>
+                  <div className="tiny muted" style={{ marginTop: 6 }}>
+                    投递岗位：{application.job_title || `岗位 #${application.job_id}`} {application.job_city ? `· ${application.job_city}` : ''}
+                  </div>
+                  <div className="tiny muted" style={{ marginTop: 4 }}>
+                    投递时间：{formatDateTime(application.created_at)}
+                  </div>
+                </div>
+              </div>
+              <div className="ai-tip" style={{ marginTop: 10 }}>
+                当前页面只展示数据库中的真实投递记录、简历快照和状态时间线；AI 匹配分、结构化简历画像尚未接入。
+              </div>
+            </div>
+
+            <div className="cell-group-title">投递简历</div>
+            <div className="cell-group">
+              <div className="cell" style={{ alignItems: 'flex-start' }}>
+                <span style={{ marginRight: 10, fontSize: 22 }}>📄</span>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, wordBreak: 'break-all' }}>{application.resume_file_name || '未记录简历文件名'}</div>
+                  {application.resume_snapshot && (
+                    <div className="tiny" style={{ marginTop: 6, color: 'var(--wx-text-2)', lineHeight: 1.6 }}>
+                      {application.resume_snapshot}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ padding: '0 16px 14px' }}>
+                <div className="row gap8">
+                  <button className="btn btn-weak btn-sm" disabled={fileLoading} onClick={() => openResumeFile('preview')}>
+                    {fileLoading ? '读取中...' : '预览原件'}
+                  </button>
+                  <button className="btn btn-default btn-sm" disabled={fileLoading} onClick={() => openResumeFile('download')}>
+                    下载原件
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {application.cover_message && (
+              <>
+                <div className="cell-group-title">求职者留言</div>
+                <div className="cell-group">
+                  <div style={{ padding: '12px 16px', fontSize: 14, lineHeight: 1.7 }}>{application.cover_message}</div>
+                </div>
+              </>
+            )}
+
+            <div className="cell-group-title">解析与匹配状态</div>
+            <CellGroup>
+              <Cell label="简历结构化解析" value="未接入，P2 开始展示真实字段" />
+              <Cell label="AI 匹配分" value="未计算，后续基于简历解析和岗位解析生成" />
+              <Cell label="数据来源" value="job_applications / jobs / users / job_application_timelines" />
+            </CellGroup>
+
+            <div className="cell-group-title">状态时间线</div>
+            <div className="cell-group">
+              {timeline.length === 0 && (
+                <div className="cell">
+                  <span className="grow tiny muted">暂无状态历史</span>
+                </div>
+              )}
+              {timeline.map(item => (
+                <div key={item.id} className="cell" style={{ alignItems: 'flex-start' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--wx-green)', margin: '7px 12px 0 2px', flexShrink: 0 }} />
+                  <div className="grow">
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {applicationStatusText[item.to_status] || item.to_status}
+                    </div>
+                    <div className="tiny muted" style={{ marginTop: 3 }}>
+                      {formatDateTime(item.created_at)} · {item.actor_role === 'seeker' ? '求职者' : item.actor_role === 'recruiter' ? '招聘者' : '系统'}
+                    </div>
+                    {item.note && <div className="tiny" style={{ marginTop: 3, color: 'var(--wx-text-2)' }}>{item.note}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {application.reject_reason && (
+              <div className="ai-tip" style={{ margin: 16, color: 'var(--wx-red)' }}>
+                拒绝原因：{application.reject_reason}
+              </div>
+            )}
+
+            <div className="btn-block-wrap row gap8" style={{ flexWrap: 'wrap' }}>
+              {[
+                ['viewed', '标记已查看'],
+                ['interview_invited', '邀约面试'],
+                ['rejected', '拒绝'],
+                ['hired', '录用'],
+              ].map(([status, label]) => (
+                <button
+                  key={status}
+                  className={`btn btn-sm ${application.status === status ? 'btn-disabled' : status === 'interview_invited' ? 'btn-primary' : 'btn-default'}`}
+                  disabled={updating || application.status === status}
+                  onClick={() => changeStatus(status)}
+                >
+                  {updating ? '处理中...' : label}
+                </button>
+              ))}
+            </div>
+
+            <div className="btn-block-wrap">
+              <button className="btn btn-default" onClick={() => navigate('/recruiter/talent')}>返回人才池</button>
+            </div>
+          </>
+        )}
+      </div>
     </>
   )
 }
@@ -293,7 +515,7 @@ export function RecruiterTalentDetail() {
         </div>
 
         {/* 原始简历 */}
-        <div className="cell-group-title">原始简历</div>
+        <div className="cell-group-title">演示简历原件（Mock）</div>
         {resume ? (
           <div className="cell-group">
             <div className="cell" style={{ alignItems: 'flex-start' }}>
@@ -309,7 +531,7 @@ export function RecruiterTalentDetail() {
             <div style={{ padding: '0 16px 14px' }}>
               <div className="row gap8">
                 <button className="btn btn-primary btn-sm" onClick={() => setShowOriginalResume(true)}>预览原件</button>
-                <button className="btn btn-default btn-sm" onClick={() => toast('原始简历下载已开始（mock）')}>下载</button>
+                <button className="btn btn-default btn-sm" onClick={() => toast('这是演示简历，不提供真实下载')}>下载</button>
               </div>
             </div>
           </div>
@@ -324,7 +546,7 @@ export function RecruiterTalentDetail() {
         )}
 
         {/* AI 解析摘要 */}
-        <div className="cell-group-title">AI 解析摘要</div>
+        <div className="cell-group-title">演示画像摘要（Mock）</div>
         {resume ? (
           <div className="cell-group">
             <div className="cell" style={{ alignItems: 'flex-start' }}>
@@ -332,7 +554,7 @@ export function RecruiterTalentDetail() {
               <div className="grow">
                 <div className="row between">
                   <span style={{ fontWeight: 600 }}>{resume.name}的简历</span>
-                  <AIBadge soft>AI解析</AIBadge>
+                  <AIBadge soft>演示数据</AIBadge>
                 </div>
                 <div className="tiny muted" style={{ marginTop: 4 }}>
                   {resume.edu} · {resume.exp} · 意向：{resume.targetJob}
@@ -442,7 +664,7 @@ export function RecruiterTalentDetail() {
         </div>
       </div>
       {showOriginalResume && originalResume && (
-        <Sheet title="原始简历预览" onClose={() => setShowOriginalResume(false)}>
+        <Sheet title="演示简历预览（Mock）" onClose={() => setShowOriginalResume(false)}>
           <div style={{ background: '#F2F3F5', padding: 12, borderRadius: 10 }}>
             <div className="row between" style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{originalResume.fileName}</div>
@@ -483,12 +705,12 @@ export function RecruiterTalentDetail() {
               <div style={{ fontWeight: 700, marginTop: 12 }}>核心技能</div>
               <div>{resume.skills.join(' / ')}</div>
               <div style={{ marginTop: 18, borderTop: '1px dashed #ccc', paddingTop: 8, color: '#999', fontSize: 11 }}>
-                第 1 / {originalResume.pages} 页 · 原始简历预览 mock
+                第 1 / {originalResume.pages} 页 · 原始简历预览演示
               </div>
             </div>
             <div className="row gap8" style={{ marginTop: 12 }}>
-              <button className="btn btn-default" onClick={() => toast('已切换到第2页（mock）')}>下一页</button>
-              <button className="btn btn-primary" onClick={() => toast('原始简历下载已开始（mock）')}>下载原件</button>
+              <button className="btn btn-default" onClick={() => toast('这是演示预览，没有真实下一页')}>下一页</button>
+              <button className="btn btn-primary" onClick={() => toast('这是演示简历，不提供真实下载')}>下载原件</button>
             </div>
           </div>
         </Sheet>

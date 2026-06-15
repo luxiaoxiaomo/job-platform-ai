@@ -18,6 +18,7 @@ export * from './jobs.js'
 export * from './aiPrompts.js'
 export * from './applications.js'
 export * from './resumes.js'
+export * from './seekerProfile.js'
 
 export const userService = USE_MOCK ? {
   getCurrentUserInfo: mockAuthService.getCurrentUserInfo,

@@ -153,45 +153,121 @@ export function SeekerJobDetail() {
 export function SeekerProfileEdit() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { completed, hasResume, markCompleted } = useProfile()
-  const [salary, setSalary] = useState('')
+  const { hasResume, profile, saveProfile } = useProfile()
+  const [form, setForm] = useState({
+    real_name: '',
+    gender: '',
+    education: '',
+    experience_years: '',
+    target_position: '',
+    expected_salary: '',
+    city: '',
+  })
+  const [saving, setSaving] = useState(false)
   const [showSalaryAI, setShowSalaryAI] = useState(false)
   const [pub, setPub] = useState({ name: true, phone: true, edu: true, exp: false })
+
+  useEffect(() => {
+    if (!profile) return
+    setForm({
+      real_name: profile.real_name || '',
+      gender: profile.gender || '',
+      education: profile.education || '',
+      experience_years: profile.experience_years ?? '',
+      target_position: profile.target_position || '',
+      expected_salary: profile.expected_salary || '',
+      city: profile.city || '',
+    })
+    setPub({
+      name: profile.name_public ?? true,
+      phone: profile.phone_public ?? true,
+      edu: profile.education_public ?? true,
+      exp: profile.experience_public ?? false,
+    })
+  }, [profile])
+
+  const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
+
+  const handleSave = async () => {
+    if (!form.real_name.trim()) { toast('请填写姓名'); return }
+    if (!form.gender.trim()) { toast('请填写性别'); return }
+    if (!form.education.trim()) { toast('请填写最高学历'); return }
+    if (form.experience_years === '' || Number.isNaN(Number(form.experience_years))) { toast('请填写工作年限'); return }
+
+    try {
+      setSaving(true)
+      await saveProfile({
+        real_name: form.real_name,
+        gender: form.gender,
+        education: form.education,
+        experience_years: Number(form.experience_years),
+        target_position: form.target_position || null,
+        expected_salary: form.expected_salary || null,
+        city: form.city || null,
+        name_public: pub.name,
+        phone_public: pub.phone,
+        education_public: pub.edu,
+        experience_public: pub.exp,
+      })
+      toast('信息已保存' + (!hasResume ? '，还需上传简历才能投递' : ''), '✓')
+      setTimeout(() => navigate(-1), 700)
+    } catch (error) {
+      toast(error.message || '保存失败')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <>
       <NavBar title="完善个人信息" />
       <div className="page" style={{ paddingBottom: 90 }}>
-        <div className="ai-tip padx" style={{ paddingTop: 12 }}>⚡ AI 渐进式收集：先填必填项即可查看岗位，其余可稍后补充。每个字段可单独设置是否对招聘者公开。</div>
+        <div className="ai-tip padx" style={{ paddingTop: 12 }}>先保存必填信息，再上传简历。公开开关控制招聘者是否可见对应字段。</div>
 
         <div className="cell-group-title">基本信息（必填）</div>
         <div className="cell-group">
-          <PubCell label="姓名" req value="李然（虚拟名）" on={pub.name} onToggle={() => setPub(p => ({ ...p, name: !p.name }))} />
-          <FormCell label="性别" req><input placeholder="请选择" /></FormCell>
-          <FormCell label="最高学历" req><input placeholder="本科" /></FormCell>
+          <div className="form-cell" style={{ alignItems: 'center' }}>
+            <span className="fc-label req">姓名</span>
+            <div className="fc-body row between" style={{ alignItems: 'center' }}>
+              <input value={form.real_name} placeholder="请输入姓名或虚拟名" onChange={e => update('real_name', e.target.value)} />
+              <div className="row gap6" style={{ flexShrink: 0 }}>
+                <span className="tiny muted">{pub.name ? '招聘者可见' : '仅自己'}</span>
+                <Switch on={pub.name} onClick={() => setPub(p => ({ ...p, name: !p.name }))} />
+              </div>
+            </div>
+          </div>
+          <FormCell label="性别" req><input value={form.gender} placeholder="如 男 / 女 / 不便透露" onChange={e => update('gender', e.target.value)} /></FormCell>
+          <FormCell label="最高学历" req><input value={form.education} placeholder="如 本科" onChange={e => update('education', e.target.value)} /></FormCell>
+          <FormCell label="工作年限" req><input type="number" min="0" value={form.experience_years} placeholder="如 5" onChange={e => update('experience_years', e.target.value)} /></FormCell>
         </div>
 
-        <div className="cell-group-title">联系方式（必填）</div>
+        <div className="cell-group-title">联系方式</div>
         <div className="cell-group">
-          <PubCell label="手机号" req value="138****6677" on={pub.phone} onToggle={() => setPub(p => ({ ...p, phone: !p.phone }))} />
+          <PubCell label="手机号" value="使用登录手机号" on={pub.phone} onToggle={() => setPub(p => ({ ...p, phone: !p.phone }))} />
         </div>
 
         <div className="cell-group-title">期望信息（选填）</div>
         <div className="cell-group">
+          <FormCell label="期望岗位">
+            <input value={form.target_position} placeholder="如 前端开发工程师" onChange={e => update('target_position', e.target.value)} />
+          </FormCell>
+          <FormCell label="期望城市">
+            <input value={form.city} placeholder="如 深圳" onChange={e => update('city', e.target.value)} />
+          </FormCell>
           <div className="form-cell">
             <span className="fc-label">期望薪资</span>
             <div className="fc-body">
               <div className="row gap8">
-                <input className="grow" value={salary} placeholder="如 20K-30K" onChange={e => setSalary(e.target.value)} />
+                <input className="grow" value={form.expected_salary} placeholder="如 20K-30K" onChange={e => update('expected_salary', e.target.value)} />
                 <AIButton onClick={() => setShowSalaryAI(true)}>薪资建议</AIButton>
               </div>
             </div>
           </div>
         </div>
         {showSalaryAI && (
-          <AICard title="AI 薪资期望建议" tip="基于「本科+5年经验+深圳」的市场数据分析，仅供参考">
+          <AICard title="AI 薪资期望建议" tip="当前为规则估算，仅供参考">
             建议期望薪资区间 <b>22K - 30K</b>／月。
-            <div style={{ marginTop: 8 }}><button className="btn btn-weak btn-sm" onClick={() => { setSalary('22K-30K'); setShowSalaryAI(false); toast('已采用建议') }}>采用建议</button></div>
+            <div style={{ marginTop: 8 }}><button className="btn btn-weak btn-sm" onClick={() => { update('expected_salary', '22K-30K'); setShowSalaryAI(false); toast('已采用建议') }}>采用建议</button></div>
           </AICard>
         )}
 
@@ -205,11 +281,9 @@ export function SeekerProfileEdit() {
               ⚡ 投递简历前还需要上传简历哦，请在上方上传
             </div>
           )}
-          <button className="btn btn-primary" onClick={() => {
-            markCompleted()
-            toast('信息已保存' + (!hasResume ? '，还需上传简历才能投递' : ''), '✓')
-            setTimeout(() => navigate(-1), 700)
-          }}>提交并查看完整信息</button>
+          <button className={`btn ${saving ? 'btn-disabled' : 'btn-primary'}`} disabled={saving} onClick={handleSave}>
+            {saving ? '保存中...' : '提交并查看完整信息'}
+          </button>
         </div>
       </div>
     </>
@@ -296,8 +370,12 @@ function ResumeUploadInline({ hasResume }) {
             <div style={{ border: '1.5px solid var(--wx-green)', borderRadius: 10, padding: '14px', background: 'var(--ai-bg)' }}>
               <div className="row between">
                 <span style={{ fontSize: 14, color: 'var(--wx-green-dark)' }}>✅ 简历已上传</span>
-                <span className="tiny" style={{ color: 'var(--wx-green-dark)', cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={() => navigate('/seeker/portrait')}>查看画像 ›</span>
+                <div className="row gap8">
+                  <span className="tiny" style={{ color: 'var(--wx-green-dark)', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={startUpload}>重新上传</span>
+                  <span className="tiny" style={{ color: 'var(--wx-green-dark)', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => navigate('/seeker/portrait')}>查看画像 ›</span>
+                </div>
               </div>
               <div className="tiny muted" style={{ marginTop: 4 }}>{resumeName || '已保存到后端，可用于投递'}</div>
               <div className="row gap6" style={{ marginTop: 6 }}>

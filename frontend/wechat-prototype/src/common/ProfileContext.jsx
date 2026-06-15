@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { getMyResume } from '../services/index.js'
+import { getMyResume, getMySeekerProfile, saveMySeekerProfile } from '../services/index.js'
 
 const ProfileCtx = createContext(null)
 
@@ -7,14 +7,19 @@ export function ProfileProvider({ children }) {
   const [completed, setCompleted] = useState(false)
   const [hasResume, setHasResume] = useState(false)
   const [resume, setResume] = useState(null)
+  const [profile, setProfile] = useState(null)
   const unlocked = completed && hasResume
 
-  const refreshResume = async () => {
+  const canLoadSeekerData = () => {
     const token = localStorage.getItem('access_token')
     const userInfo = localStorage.getItem('user_info')
-    if (!token || !userInfo) return null
+    if (!token || !userInfo) return false
     const user = JSON.parse(userInfo)
-    if (user.role !== 'seeker') return null
+    return user.role === 'seeker'
+  }
+
+  const refreshResume = async () => {
+    if (!canLoadSeekerData()) return null
 
     const data = await getMyResume()
     setHasResume(!!data.has_resume)
@@ -22,21 +27,44 @@ export function ProfileProvider({ children }) {
     return data.resume || null
   }
 
+  const refreshProfile = async () => {
+    if (!canLoadSeekerData()) return null
+
+    const data = await getMySeekerProfile()
+    setCompleted(!!data.is_complete)
+    setProfile(data || null)
+    return data || null
+  }
+
+  const saveProfile = async (data) => {
+    const saved = await saveMySeekerProfile(data)
+    setCompleted(!!saved.is_complete)
+    setProfile(saved)
+    return saved
+  }
+
   useEffect(() => {
     refreshResume().catch(() => {
       setHasResume(false)
       setResume(null)
     })
+    refreshProfile().catch(() => {
+      setCompleted(false)
+      setProfile(null)
+    })
   }, [])
 
-  const markCompleted = () => setCompleted(true)
+  const markCompleted = (nextProfile = null) => {
+    setCompleted(true)
+    if (nextProfile) setProfile(nextProfile)
+  }
   const markResume = (nextResume = null) => {
     setHasResume(true)
     if (nextResume) setResume(nextResume)
   }
 
   return (
-    <ProfileCtx.Provider value={{ completed, hasResume, resume, unlocked, markCompleted, markResume, refreshResume }}>
+    <ProfileCtx.Provider value={{ completed, hasResume, resume, profile, unlocked, markCompleted, markResume, refreshResume, refreshProfile, saveProfile }}>
       {children}
     </ProfileCtx.Provider>
   )

@@ -35,7 +35,7 @@ async def upload_resume(client: AsyncClient, seeker_token: str) -> dict:
         headers={"Authorization": f"Bearer {seeker_token}"},
     )
     assert response.status_code == 200
-    return response.json()
+    return response.json()["resume"]
 
 
 class TestApplications:
@@ -180,6 +180,41 @@ class TestApplications:
         assert data["status"] == "interview_invited"
         assert data["viewed_at"] is not None
 
+        detail_response = await client.get(
+            f"/api/v1/applications/recruiter/{application_id}",
+            headers={"Authorization": f"Bearer {recruiter_token}"},
+        )
+
+        assert detail_response.status_code == 200
+        detail = detail_response.json()
+        assert detail["id"] == application_id
+        assert [item["to_status"] for item in detail["timeline"]] == ["submitted", "interview_invited"]
+
+    async def test_recruiter_can_download_own_application_resume(
+        self,
+        client: AsyncClient,
+        db_session,
+        test_recruiter_data,
+        test_user_data,
+    ):
+        recruiter_token, job_id = await create_active_job(client, db_session, test_recruiter_data)
+        seeker_token = await register_and_get_token(client, test_user_data)
+        await upload_resume(client, seeker_token)
+        apply_response = await client.post(
+            "/api/v1/applications",
+            json={"job_id": job_id},
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+        application_id = apply_response.json()["id"]
+
+        response = await client.get(
+            f"/api/v1/applications/recruiter/{application_id}/resume-file",
+            headers={"Authorization": f"Bearer {recruiter_token}"},
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"fake resume content"
+
     async def test_recruiter_cannot_update_other_recruiters_application(
         self,
         client: AsyncClient,
@@ -212,6 +247,18 @@ class TestApplications:
         )
 
         assert response.status_code == 404
+
+        detail_response = await client.get(
+            f"/api/v1/applications/recruiter/{application_id}",
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+        download_response = await client.get(
+            f"/api/v1/applications/recruiter/{application_id}/resume-file",
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+
+        assert detail_response.status_code == 404
+        assert download_response.status_code == 404
 
     async def test_rejected_status_requires_reason(
         self,

@@ -5,6 +5,8 @@ import {
 } from '../components/ui.jsx'
 import { feedJobs, seekerChats, initialSubs, aiRecommendSubs, aiMock, pickColor } from '../mock/data.js'
 import { listPublicJobs } from '../services/index.js'
+import { useProfile } from '../common/ProfileContext.jsx'
+import { getLegacyResumeStatus } from '../utils/resumeStatus.js'
 
 /* ============ 应聘者 Tab 容器 ============ */
 export function SeekerApp() {
@@ -273,16 +275,35 @@ function MsgList({ onOpen }) {
 /* ============ 应聘者个人中心（信息完整度） ============ */
 function Profile({ onEdit }) {
   const navigate = useNavigate()
-  const pct = 65
+  const { completed, hasResume, resume, profile } = useProfile()
+  const resumeStatus = getLegacyResumeStatus(resume)
+  const profileFields = [
+    profile?.real_name,
+    profile?.gender,
+    profile?.education,
+    profile?.experience_years !== null && profile?.experience_years !== undefined ? String(profile.experience_years) : '',
+    profile?.target_position,
+    profile?.expected_salary,
+    profile?.city,
+  ]
+  const filled = profileFields.filter(Boolean).length + (hasResume ? 1 : 0)
+  const pct = Math.round((filled / 8) * 100)
+  const displayName = profile?.real_name || '未填写姓名'
+  const avatarText = (profile?.real_name || '我').slice(0, 1)
+  const summary = [
+    profile?.target_position || '未填写期望岗位',
+    profile?.experience_years !== null && profile?.experience_years !== undefined ? `${profile.experience_years}年经验` : '未填写经验',
+    profile?.education || '未填写学历',
+  ].join(' · ')
   return (
     <>
       <NavBar title="我的" back={false} />
       <div className="page has-tabbar">
         <div className="row" style={{ background: '#fff', padding: '20px 16px', gap: 14 }}>
-          <span style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--wx-green-bg)', color: 'var(--wx-green-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700 }}>李</span>
+          <span style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--wx-green-bg)', color: 'var(--wx-green-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700 }}>{avatarText}</span>
           <div className="grow">
-            <div style={{ fontSize: 17, fontWeight: 600 }}>李然 <span className="tag tag-gray" style={{ marginLeft: 4 }}>虚拟名</span></div>
-            <div className="tiny muted" style={{ marginTop: 4 }}>前端开发 · 5年经验 · 本科</div>
+            <div style={{ fontSize: 17, fontWeight: 600 }}>{displayName} {!completed && <span className="tag tag-gray" style={{ marginLeft: 4 }}>待完善</span>}</div>
+            <div className="tiny muted" style={{ marginTop: 4 }}>{summary}</div>
           </div>
         </div>
 
@@ -297,7 +318,14 @@ function Profile({ onEdit }) {
         <CellGroup>
           <Cell icon="🔔" iconBg="#FFE6E6" label="通知中心" value="2 条未读" link onClick={() => navigate('/seeker/notifications')} />
           <Cell icon="📝" iconBg="#ECF9F1" label="编辑个人信息" link onClick={onEdit} />
-          <Cell icon="📄" iconBg="#E8F5FF" label="上传简历" value="AI 解析" link onClick={() => navigate('/seeker/resume')} />
+          <Cell
+            icon="📄"
+            iconBg="#E8F5FF"
+            label="上传简历"
+            value={resumeStatus.label}
+            link
+            onClick={() => navigate('/seeker/resume')}
+          />
           <Cell icon="🎯" iconBg="#ECF9F1" label="我的简历画像" value="中高级前端" link onClick={() => navigate('/seeker/portrait')} />
           <Cell icon="📨" iconBg="#E8F5FF" label="投递记录" value="3 条" link onClick={() => navigate('/seeker/applications')} />
           <Cell icon="🔔" iconBg="#FFF3E6" label="我的订阅" value="3 组" link />

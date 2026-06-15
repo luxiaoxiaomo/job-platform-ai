@@ -78,3 +78,34 @@ class JobApplication(Base):
 
     def __repr__(self) -> str:
         return f"<JobApplication(id={self.id}, job_id={self.job_id}, status={self.status})>"
+
+
+class JobApplicationTimeline(Base):
+    """Status history for one job application."""
+
+    __tablename__ = "job_application_timelines"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Timeline ID")
+    application_id = Column(
+        Integer,
+        ForeignKey("job_applications.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Application ID",
+    )
+    from_status = Column(String(30), nullable=True, comment="Previous application status")
+    to_status = Column(String(30), nullable=False, comment="New application status")
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="Actor user ID")
+    actor_role = Column(String(30), nullable=False, comment="seeker/recruiter/admin/system")
+    note = Column(Text, nullable=True, comment="Timeline note")
+    created_at = Column(DateTime, default=func.now(), nullable=False, comment="Created at")
+
+    application = relationship("JobApplication")
+    actor = relationship("User")
+
+    __table_args__ = (
+        Index("idx_job_application_timelines_application_id", "application_id"),
+        Index("idx_job_application_timelines_created_at", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<JobApplicationTimeline(id={self.id}, application_id={self.application_id}, to_status={self.to_status})>"

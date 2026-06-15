@@ -1,12 +1,12 @@
 import React from 'react'
 import { Routes, Route, Navigate, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { ToastProvider, Phone } from './components/ui.jsx'
-import { RecruiterApp, RecruiterRegister } from './recruiter/RecruiterPages.jsx'
+import { RecruiterApp, RecruiterJobDetail, RecruiterRegister } from './recruiter/RecruiterPages.jsx'
 import { RecruiterJobCreate, RecruiterJobReview, RecruiterChat, RecruiterJobUpload } from './recruiter/RecruiterFlow.jsx'
 import { RecruiterCandidate, RecruiterStats } from './recruiter/RecruiterExtra.jsx'
 import { RecruiterCompanyPortrait, RecruiterJobPortrait } from './recruiter/RecruiterPortrait.jsx'
 import { RecruiterVisitors } from './recruiter/RecruiterVisitors.jsx'
-import { RecruiterTalentPool, RecruiterTalentDetail } from './recruiter/RecruiterTalentPool.jsx'
+import { RecruiterApplicationDetail, RecruiterTalentPool, RecruiterTalentDetail } from './recruiter/RecruiterTalentPool.jsx'
 import RecruiterNotifications from './recruiter/RecruiterNotifications.jsx'
 import RecruiterFunnel from './recruiter/RecruiterFunnel.jsx'
 import { RecruiterInterviews, RecruiterInterviewDetail } from './recruiter/RecruiterInterview.jsx'
@@ -15,6 +15,8 @@ import { SeekerJobDetail, SeekerProfileEdit, SeekerChat } from './seeker/SeekerF
 import { SeekerMatch, SeekerApply, SeekerApplications, SeekerFavorites, SeekerHistory, SeekerCompanyView, SeekerInterviewPrep } from './seeker/SeekerExtra.jsx'
 import SeekerNotifications from './seeker/SeekerNotifications.jsx'
 import { SeekerResumeUpload, SeekerPortrait } from './seeker/SeekerPortrait.jsx'
+import { SeekerParseHistory } from './seeker/SeekerParseHistory.jsx'
+import { SeekerParseDetail } from './seeker/SeekerParseDetail.jsx'
 import { AdminReviewList, AdminReviewDetail } from './admin/AdminReview.jsx'
 import {
   AdminCompanyCertificationList,
@@ -117,6 +119,7 @@ export default function App() {
         {/* 招聘者端 */}
         <Route path="/recruiter/register" element={<Stage label="招聘者 · 注册认证"><RecruiterRegister /></Stage>} />
         <Route path="/recruiter/jobs" element={<Stage label="招聘者 · 我的岗位"><RecruiterApp /></Stage>} />
+        <Route path="/recruiter/jobs/:jobId" element={<Stage label="招聘者 · 岗位详情"><RecruiterJobDetail /></Stage>} />
         <Route path="/recruiter/job/create" element={<Stage label="招聘者 · 发布岗位"><RecruiterJobCreate /></Stage>} />
         <Route path="/recruiter/job/upload" element={<Stage label="招聘者 · 批量导入"><RecruiterJobUpload /></Stage>} />
         <Route path="/recruiter/job/review" element={<Stage label="招聘者 · 发布审核"><RecruiterJobReview /></Stage>} />
@@ -127,6 +130,7 @@ export default function App() {
         <Route path="/recruiter/job-portrait" element={<Stage label="招聘者 · 岗位画像"><RecruiterJobPortrait /></Stage>} />
         <Route path="/recruiter/job/visitors/:jobId" element={<Stage label="招聘者 · 访客穿透"><RecruiterVisitors /></Stage>} />
         <Route path="/recruiter/talent" element={<Stage label="招聘者 · 人才池"><RecruiterTalentPool /></Stage>} />
+        <Route path="/recruiter/applications/:applicationId" element={<Stage label="招聘者 · 投递详情"><RecruiterApplicationDetail /></Stage>} />
         <Route path="/recruiter/talent/:id" element={<Stage label="招聘者 · 人才详情"><RecruiterTalentDetail /></Stage>} />
         <Route path="/recruiter/notifications" element={<Stage label="招聘者 · 通知中心"><RecruiterNotifications /></Stage>} />
         <Route path="/recruiter/funnel" element={<Stage label="招聘者 · 招聘漏斗"><RecruiterFunnel /></Stage>} />
@@ -146,6 +150,8 @@ export default function App() {
           <Route path="/seeker/interview-prep" element={<Stage label="应聘者 · 面试准备"><SeekerInterviewPrep /></Stage>} />
           <Route path="/seeker/resume" element={<Stage label="应聘者 · 上传简历"><SeekerResumeUpload /></Stage>} />
           <Route path="/seeker/portrait" element={<Stage label="应聘者 · 简历画像"><SeekerPortrait /></Stage>} />
+          <Route path="/seeker/parse-history" element={<Stage label="应聘者 · 解析历史"><SeekerParseHistory /></Stage>} />
+          <Route path="/seeker/parse-history/:uploadId" element={<Stage label="应聘者 · 解析详情"><SeekerParseDetail /></Stage>} />
           <Route path="/seeker/company-portrait" element={<Stage label="应聘者 · 企业画像"><SeekerCompanyView /></Stage>} />
           <Route path="/seeker/profile/edit" element={<Stage label="应聘者 · 完善信息"><SeekerProfileEdit /></Stage>} />
           <Route path="/seeker/notifications" element={<Stage label="应聘者 · 通知中心"><SeekerNotifications /></Stage>} />

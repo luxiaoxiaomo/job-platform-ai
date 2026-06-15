@@ -2,18 +2,22 @@
 Job application business logic.
 """
 from datetime import datetime, timezone
+import mimetypes
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.application.models import JobApplication
+from app.modules.application.models import JobApplication, JobApplicationTimeline
 from app.modules.application.repository import ApplicationRepository
 from app.modules.application.schemas import (
     ApplicationCreate,
+    ApplicationDetailResponse,
     ApplicationListResponse,
     ApplicationResponse,
     ApplicationStatusUpdate,
+    ApplicationTimelineResponse,
 )
 from app.modules.job.repository import JobRepository
 from app.modules.resume.repository import ResumeRepository
@@ -51,6 +55,46 @@ def _to_response(application: JobApplication) -> ApplicationResponse:
     )
 
 
+def _to_timeline_response(timeline: JobApplicationTimeline) -> ApplicationTimelineResponse:
+    return ApplicationTimelineResponse(
+        id=timeline.id,
+        application_id=timeline.application_id,
+        from_status=timeline.from_status,
+        to_status=timeline.to_status,
+        actor_id=timeline.actor_id,
+        actor_role=timeline.actor_role,
+        note=timeline.note,
+        created_at=timeline.created_at,
+    )
+
+
+def _to_detail_response(
+    application: JobApplication,
+    timeline: list[JobApplicationTimeline],
+) -> ApplicationDetailResponse:
+    base = _to_response(application).model_dump()
+    return ApplicationDetailResponse(
+        **base,
+        timeline=[_to_timeline_response(item) for item in timeline],
+    )
+
+
+def _resume_file_path(file_url: Optional[str]) -> Path:
+    if not file_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume file not found")
+    if not file_url.startswith("/uploads/"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume file not found")
+
+    uploads_root = Path("uploads").resolve()
+    relative_parts = PurePosixPath(file_url.removeprefix("/uploads/")).parts
+    target = uploads_root.joinpath(*relative_parts).resolve()
+    if uploads_root != target and uploads_root not in target.parents:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume file not found")
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume file not found")
+    return target
+
+
 class ApplicationService:
     """Job application use cases."""
 
@@ -86,6 +130,19 @@ class ApplicationService:
             status_updated_at=now,
         )
         created = await ApplicationRepository.create(db, application)
+        await ApplicationRepository.add_timeline(
+            db,
+            JobApplicationTimeline(
+                application_id=created.id,
+                from_status=None,
+                to_status="submitted",
+                actor_id=current_user.id,
+                actor_role="seeker",
+                note="Application submitted",
+                created_at=created.created_at,
+            ),
+        )
+        await db.commit()
         created.job = job
         created.seeker = current_user
         created.recruiter = job.recruiter
@@ -114,6 +171,43 @@ class ApplicationService:
             skip=skip,
             limit=limit,
         )
+
+    @staticmethod
+    async def get_for_recruiter(
+        db: AsyncSession,
+        current_user: User,
+        application_id: int,
+    ) -> ApplicationDetailResponse:
+        application = await ApplicationRepository.get_by_id(db, application_id)
+        if application is None or application.recruiter_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+        timeline = await ApplicationRepository.list_timelines(db, application.id)
+        return _to_detail_response(application, timeline)
+
+    @staticmethod
+    async def get_for_seeker(
+        db: AsyncSession,
+        current_user: User,
+        application_id: int,
+    ) -> ApplicationDetailResponse:
+        application = await ApplicationRepository.get_by_id(db, application_id)
+        if application is None or application.seeker_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+        timeline = await ApplicationRepository.list_timelines(db, application.id)
+        return _to_detail_response(application, timeline)
+
+    @staticmethod
+    async def get_resume_file_for_recruiter(
+        db: AsyncSession,
+        current_user: User,
+        application_id: int,
+    ) -> tuple[Path, str, Optional[str]]:
+        application = await ApplicationRepository.get_by_id(db, application_id)
+        if application is None or application.recruiter_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+        path = _resume_file_path(application.resume_file_url)
+        media_type = mimetypes.guess_type(application.resume_file_name or path.name)[0] or "application/octet-stream"
+        return path, application.resume_file_name or path.name, media_type
 
     @staticmethod
     async def list_for_recruiter(
@@ -174,12 +268,25 @@ class ApplicationService:
         if data.status == "rejected" and not data.reject_reason:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reject reason is required")
 
+        old_status = application.status
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         application.status = data.status
         application.status_updated_at = now
         application.reject_reason = data.reject_reason if data.status == "rejected" else None
         if data.status in {"viewed", "interview_invited", "rejected", "hired"} and application.viewed_at is None:
             application.viewed_at = now
+        await ApplicationRepository.add_timeline(
+            db,
+            JobApplicationTimeline(
+                application_id=application.id,
+                from_status=old_status,
+                to_status=data.status,
+                actor_id=current_user.id,
+                actor_role="recruiter",
+                note=data.reject_reason if data.status == "rejected" else None,
+                created_at=now,
+            ),
+        )
 
         updated = await ApplicationRepository.update(db, application)
         return _to_response(updated)

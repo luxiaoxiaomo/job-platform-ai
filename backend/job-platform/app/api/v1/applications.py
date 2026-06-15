@@ -4,12 +4,14 @@ Job application API.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status as http_status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.modules.application.schemas import (
     ApplicationCreate,
+    ApplicationDetailResponse,
     ApplicationListResponse,
     ApplicationResponse,
     ApplicationStatusUpdate,
@@ -48,6 +50,16 @@ async def list_my_applications(
     )
 
 
+@router.get("/me/{application_id}", response_model=ApplicationDetailResponse)
+async def get_my_application(
+    application_id: int,
+    current_user: User = Depends(require_role("seeker")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current seeker's application detail with status timeline."""
+    return await ApplicationService.get_for_seeker(db, current_user, application_id)
+
+
 @router.get("/recruiter", response_model=ApplicationListResponse)
 async def list_recruiter_applications(
     status: Optional[str] = Query(None, description="submitted/viewed/interview_invited/rejected/hired"),
@@ -64,6 +76,31 @@ async def list_recruiter_applications(
         limit=limit,
         status_filter=status,
     )
+
+
+@router.get("/recruiter/{application_id}", response_model=ApplicationDetailResponse)
+async def get_recruiter_application(
+    application_id: int,
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get one application received by current recruiter's jobs."""
+    return await ApplicationService.get_for_recruiter(db, current_user, application_id)
+
+
+@router.get("/recruiter/{application_id}/resume-file")
+async def download_recruiter_application_resume(
+    application_id: int,
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download resume file for one application owned by current recruiter."""
+    path, filename, media_type = await ApplicationService.get_resume_file_for_recruiter(
+        db,
+        current_user,
+        application_id,
+    )
+    return FileResponse(path, filename=filename, media_type=media_type)
 
 
 @router.post("/{application_id}/status", response_model=ApplicationResponse)

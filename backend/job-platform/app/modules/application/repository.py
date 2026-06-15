@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.modules.application.models import JobApplication
+from app.modules.application.models import JobApplication, JobApplicationTimeline
 
 
 class ApplicationRepository:
@@ -34,10 +34,26 @@ class ApplicationRepository:
                 selectinload(JobApplication.job),
                 selectinload(JobApplication.seeker),
                 selectinload(JobApplication.recruiter),
+                selectinload(JobApplication.resume),
             )
             .where(JobApplication.id == application_id)
         )
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def add_timeline(db: AsyncSession, timeline: JobApplicationTimeline) -> JobApplicationTimeline:
+        db.add(timeline)
+        await db.flush()
+        return timeline
+
+    @staticmethod
+    async def list_timelines(db: AsyncSession, application_id: int) -> list[JobApplicationTimeline]:
+        result = await db.execute(
+            select(JobApplicationTimeline)
+            .where(JobApplicationTimeline.application_id == application_id)
+            .order_by(JobApplicationTimeline.created_at.asc(), JobApplicationTimeline.id.asc())
+        )
+        return list(result.scalars().all())
 
     @staticmethod
     async def get_by_job_and_seeker(
