@@ -66,12 +66,22 @@ class UserResponse(BaseModel):
     display_name: str
     role: str
     avatar_url: Optional[str] = None
+    wechat_bound: bool = False
     status: str
     created_at: datetime
 
     model_config = {
         "from_attributes": True
     }
+
+
+class UserListResponse(BaseModel):
+    """Paginated user list response."""
+
+    items: list[UserResponse]
+    total: int
+    skip: int
+    limit: int
 
 
 class TokenResponse(BaseModel):

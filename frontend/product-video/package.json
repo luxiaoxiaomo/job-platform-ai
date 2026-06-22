@@ -1,0 +1,12 @@
+{
+  "name": "product-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.6.93 preview",
+    "check": "npx --yes hyperframes@0.6.93 lint && npx --yes hyperframes@0.6.93 validate && npx --yes hyperframes@0.6.93 inspect",
+    "render": "npx --yes hyperframes@0.6.93 render -o renders/ai-position-product-demo-30s.mp4 --fps 30 --quality high",
+    "snapshot": "npx --yes hyperframes@0.6.93 snapshot -o snapshots",
+    "publish": "npx --yes hyperframes@0.6.93 publish"
+  }
+}

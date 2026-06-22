@@ -7,6 +7,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 from httpx import AsyncClient
 
+from tests.test_api.test_company_certifications import create_admin_token
+
 
 def _build_docx_bytes(text: str) -> bytes:
     document_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -39,16 +41,52 @@ class TestResumes:
     """Resume upload API behavior."""
 
     @pytest.mark.asyncio
+    async def test_profile_summary_empty_state(self, client: AsyncClient, test_user_data):
+        token = await _register_seeker(client, test_user_data)
+
+        response = await client.get(
+            "/api/v1/resumes/me/profile-summary",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 200
+        summary = response.json()
+        assert summary["resume"] is None
+        assert summary["profile"] is None
+        assert summary["basic_info"] is None
+        assert summary["summaries"] == {
+            "educations": [],
+            "work_experiences": [],
+            "projects": [],
+            "skills": [],
+            "certificates": [],
+        }
+        assert summary["completeness"]["core"] == {
+            "score": 0,
+            "filled_count": 0,
+            "total_count": 0,
+            "missing_fields": [],
+        }
+        assert summary["completeness"]["recommended"]["total_count"] == 0
+        assert summary["review"] == {
+            "needs_review": False,
+            "unconfirmed_count": 0,
+            "low_confidence_count": 0,
+            "status_label": "未上传",
+        }
+        assert summary["source_links"]["parse_run_id"] is None
+
+    @pytest.mark.asyncio
     async def test_upload_docx_creates_upload_and_parse_run(self, client: AsyncClient, test_user_data):
         token = await _register_seeker(client, test_user_data)
-        content = _build_docx_bytes("王明雷 PeopleSoft 技术顾问 12年经验 项目 技能 教育")
+        content = _build_docx_bytes("姓名：孙明明\n年龄：28\n性别：男\n目标岗位：PeopleSoft 技术顾问\n工作经验：12年\n项目 技能 教育")
 
         response = await client.post(
             "/api/v1/resumes/me/upload",
             headers={"Authorization": f"Bearer {token}"},
             files={
                 "file": (
-                    "王明雷简历.docx",
+                "孙明明简历.docx",
                     content,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
@@ -58,7 +96,7 @@ class TestResumes:
         assert response.status_code == 200
         data = response.json()
         assert set(data.keys()) == {"resume", "upload", "parse_run"}
-        assert data["resume"]["parsed_snapshot"].startswith("简历文件 | 王明雷简历.docx")
+        assert data["resume"]["parsed_snapshot"].startswith("简历文件 | 孙明明简历.docx")
         assert data["resume"]["current_upload_id"] == data["upload"]["id"]
         assert data["resume"]["current_parse_run_id"] == data["parse_run"]["id"]
         assert data["upload"]["status"] == "parsed"
@@ -102,6 +140,47 @@ class TestResumes:
         assert len(detail_data["chunks"]) >= 1
         assert "PeopleSoft" in detail_data["chunks"][0]["content_preview"]
 
+        auto_structured_response = await client.get(
+            f"/api/v1/resumes/me/parse-runs/{data['parse_run']['id']}/structured",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert auto_structured_response.status_code == 200
+        auto_structured = auto_structured_response.json()
+        assert auto_structured["profile"]["source"] == "rule"
+        assert auto_structured["profile"]["status"] == "validated"
+        assert auto_structured["basic_info"]["real_name"] == "孙明明"
+        assert auto_structured["basic_info"]["age"] == 28
+        assert auto_structured["basic_info"]["gender"] == "男"
+        assert auto_structured["basic_info"]["target_position"] == "PeopleSoft 技术顾问"
+
+        summary_response = await client.get(
+            "/api/v1/resumes/me/profile-summary",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert summary_response.status_code == 200
+        summary = summary_response.json()
+        assert summary["resume"]["current_parse_run_id"] == data["parse_run"]["id"]
+        assert summary["profile"]["id"] == auto_structured["profile"]["id"]
+        assert summary["basic_info"]["real_name"] == "孙明明"
+        assert summary["basic_info"]["age"] == 28
+        assert summary["completeness"]["core"]["total_count"] == 5
+        assert summary["completeness"]["recommended"]["total_count"] == 9
+        assert "手机号" in summary["completeness"]["recommended"]["missing_fields"]
+        assert "手机号" not in summary["completeness"]["core"]["missing_fields"]
+        assert summary["review"]["needs_review"] is True
+        assert summary["review"]["unconfirmed_count"] == 1
+        assert summary["review"]["status_label"] == "待确认"
+        assert summary["source_links"]["parse_run_id"] == data["parse_run"]["id"]
+        assert summary["source_links"]["structured_url"].endswith(f"/{data['parse_run']['id']}/structured")
+        assert summary["source_links"]["confirm_page_path"].endswith(str(data["parse_run"]["id"]))
+
+        profile_response = await client.get(
+            "/api/v1/seeker-profiles/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert profile_response.status_code == 200
+        assert profile_response.json()["real_name"] is None
+
         other_user_data = {
             **test_user_data,
             "phone": "13800138001",
@@ -114,3 +193,291 @@ class TestResumes:
         )
 
         assert forbidden_response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_structured_profile_can_project_to_detail_tables(self, client: AsyncClient, test_user_data):
+        token = await _register_seeker(client, test_user_data)
+        content = _build_docx_bytes("王明雷 PeopleSoft 技术顾问 12年经验 项目 技能 教育")
+
+        upload_response = await client.post(
+            "/api/v1/resumes/me/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files={
+                "file": (
+                    "resume.docx",
+                    content,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+        )
+        assert upload_response.status_code == 200
+        parse_run_id = upload_response.json()["parse_run"]["id"]
+
+        structured_json = {
+            "basic": {
+                "name": "王明雷",
+                "gender": "男",
+                "highest_education": "硕士",
+                "work_years": 12,
+                "target_position": "PeopleSoft 技术顾问",
+                "confidence_score": 0.92,
+            },
+            "education": [
+                {
+                    "school_name": "上海交通大学",
+                    "major": "软件工程",
+                    "degree": "硕士",
+                    "start_date": "2024",
+                    "end_date": "2026",
+                    "confidence_score": 0.86,
+                }
+            ],
+            "work_experiences": [
+                {
+                    "company_name": "汉得信息",
+                    "position": "技术顾问",
+                    "description": "负责人事薪酬系统实施和优化",
+                    "confidence_score": 0.88,
+                }
+            ],
+            "projects": [
+                {
+                    "project_name": "得物 PeopleSoft HCM 项目",
+                    "role": "技术顾问",
+                    "responsibility": "需求分析、二开和上线支持",
+                    "confidence_score": 0.83,
+                }
+            ],
+            "skills": [
+                {"skill_name": "PeopleSoft", "skill_level": "熟练", "category": "ERP", "confidence_score": 0.95},
+                {"skill_name": "HCM", "category": "业务系统", "confidence_score": 0.91},
+            ],
+            "certificates": [
+                {"certificate_name": "PMP", "certificate_type": "项目管理", "confidence_score": 0.8}
+            ],
+        }
+        create_response = await client.post(
+            "/api/v1/resumes/me/structured-profiles",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "parse_run_id": parse_run_id,
+                "source": "manual",
+                "status": "needs_review",
+                "confidence_score": 0.9,
+                "structured_json": structured_json,
+            },
+        )
+
+        assert create_response.status_code == 200
+        profile = create_response.json()
+        assert profile["parse_run_id"] == parse_run_id
+        assert profile["status"] == "needs_review"
+        assert profile["structured_json"]["basic"]["name"] == "王明雷"
+
+        parse_run_structured_response = await client.get(
+            f"/api/v1/resumes/me/parse-runs/{parse_run_id}/structured",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert parse_run_structured_response.status_code == 200
+        parse_run_structured = parse_run_structured_response.json()
+        assert parse_run_structured["profile"]["id"] == profile["id"]
+        assert parse_run_structured["profile"]["structured_json"]["basic"]["name"] == "王明雷"
+
+        project_response = await client.post(
+            f"/api/v1/resumes/me/structured-profiles/{profile['id']}/project",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"confirm": True, "min_confidence": 0.8},
+        )
+
+        assert project_response.status_code == 200
+        projected = project_response.json()
+        assert projected["profile"]["status"] == "confirmed"
+        assert projected["projected_counts"] == {
+            "basic_info": 1,
+            "educations": 1,
+            "work_experiences": 1,
+            "projects": 1,
+            "skills": 2,
+            "certificates": 1,
+        }
+        assert projected["detail"]["basic_info"]["real_name"] == "王明雷"
+        assert projected["detail"]["educations"][0]["school_name"] == "上海交通大学"
+        assert projected["detail"]["skills"][0]["skill_name"] == "PeopleSoft"
+
+        latest_response = await client.get(
+            "/api/v1/resumes/me/structured-profiles/latest",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert latest_response.status_code == 200
+        latest = latest_response.json()
+        assert latest["profile"]["id"] == profile["id"]
+        assert latest["basic_info"]["target_position"] == "PeopleSoft 技术顾问"
+
+        confirm_response = await client.put(
+            "/api/v1/resumes/me/structured/confirm",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "parse_run_id": parse_run_id,
+                "min_confidence": 0.85,
+                "structured_json": {
+                    **structured_json,
+                    "basic": {
+                        **structured_json["basic"],
+                        "target_position": "PeopleSoft HCM 顾问",
+                    },
+                },
+            },
+        )
+        assert confirm_response.status_code == 200
+        confirmed = confirm_response.json()
+        assert confirmed["profile"]["status"] == "confirmed"
+        assert confirmed["detail"]["basic_info"]["target_position"] == "PeopleSoft HCM 顾问"
+
+        post_confirm_response = await client.post(
+            "/api/v1/resumes/me/structured/confirm",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "parse_run_id": parse_run_id,
+                "min_confidence": 0.85,
+                "structured_json": {
+                    **structured_json,
+                    "basic": {
+                        **structured_json["basic"],
+                        "target_position": "PeopleSoft HCM 顾问",
+                    },
+                },
+            },
+        )
+        assert post_confirm_response.status_code == 200
+        assert post_confirm_response.json()["profile"]["status"] == "confirmed"
+
+        summary_response = await client.get(
+            "/api/v1/resumes/me/profile-summary",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert summary_response.status_code == 200
+        summary = summary_response.json()
+        assert summary["profile"]["id"] == profile["id"]
+        assert summary["basic_info"]["target_position"] == "PeopleSoft HCM 顾问"
+        assert summary["summaries"]["skills"][0]["skill_name"] == "PeopleSoft"
+        assert summary["completeness"]["core"]["total_count"] == 5
+        assert summary["completeness"]["core"]["missing_fields"] == []
+        assert summary["completeness"]["recommended"]["total_count"] == 9
+        assert summary["review"]["needs_review"] is False
+        assert summary["review"]["unconfirmed_count"] == 0
+        assert summary["review"]["status_label"] == "已确认"
+        assert summary["source_links"]["parse_run_id"] == parse_run_id
+
+        synced_profile_response = await client.get(
+            "/api/v1/seeker-profiles/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert synced_profile_response.status_code == 200
+        synced_profile = synced_profile_response.json()
+        assert synced_profile["real_name"] == "王明雷"
+        assert synced_profile["gender"] == "男"
+        assert synced_profile["target_position"] == "PeopleSoft HCM 顾问"
+
+        other_user_data = {
+            **test_user_data,
+            "phone": "13800138002",
+            "display_name": "Other Seeker",
+        }
+        other_token = await _register_seeker(client, other_user_data)
+        forbidden_response = await client.get(
+            f"/api/v1/resumes/me/structured-profiles/{profile['id']}",
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+        assert forbidden_response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_structured_profile_can_link_tag_library_items(
+        self,
+        client: AsyncClient,
+        db_session,
+        test_user_data,
+    ):
+        admin_token = await create_admin_token(client, db_session)
+        tag_response = await client.post(
+            "/api/v1/base-data/tags",
+            json={"name": "PeopleSoft", "category": "技能", "color": "#1f7ae0"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        tag = tag_response.json()
+        token = await _register_seeker(client, test_user_data)
+        upload_response = await client.post(
+            "/api/v1/resumes/me/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files={
+                "file": (
+                    "resume.docx",
+                    _build_docx_bytes("PeopleSoft SQL HCM"),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+        )
+        parse_run_id = upload_response.json()["parse_run"]["id"]
+
+        create_response = await client.post(
+            "/api/v1/resumes/me/structured-profiles",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "parse_run_id": parse_run_id,
+                "structured_json": {"basic": {"name": "王明雷"}, "skills": [{"skill_name": "PeopleSoft"}]},
+                "tag_ids": [tag["id"]],
+            },
+        )
+
+        assert create_response.status_code == 200
+        profile = create_response.json()
+        assert profile["tag_refs"] == [
+            {"id": tag["id"], "name": "PeopleSoft", "category": "技能", "color": "#1f7ae0"}
+        ]
+
+        latest_response = await client.get(
+            "/api/v1/resumes/me/structured-profiles/latest",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert latest_response.status_code == 200
+        assert latest_response.json()["profile"]["tag_refs"][0]["id"] == tag["id"]
+
+        confirm_response = await client.put(
+            "/api/v1/resumes/me/structured/confirm",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"parse_run_id": parse_run_id, "tag_ids": [tag["id"]]},
+        )
+        assert confirm_response.status_code == 200
+        assert confirm_response.json()["profile"]["tag_refs"][0]["name"] == "PeopleSoft"
+
+    @pytest.mark.asyncio
+    async def test_structured_profile_rejects_missing_tag_library_item(
+        self,
+        client: AsyncClient,
+        test_user_data,
+    ):
+        token = await _register_seeker(client, test_user_data)
+        upload_response = await client.post(
+            "/api/v1/resumes/me/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files={
+                "file": (
+                    "resume.docx",
+                    _build_docx_bytes("PeopleSoft SQL HCM"),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+        )
+        parse_run_id = upload_response.json()["parse_run"]["id"]
+
+        response = await client.post(
+            "/api/v1/resumes/me/structured-profiles",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "parse_run_id": parse_run_id,
+                "structured_json": {"basic": {"name": "王明雷"}},
+                "tag_ids": [999999],
+            },
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Tag not found"

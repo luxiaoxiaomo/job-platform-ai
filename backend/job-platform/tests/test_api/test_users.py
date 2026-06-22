@@ -182,3 +182,53 @@ class TestUsers:
 
         assert response.status_code == 200
         assert response.json()["id"] == normal_user_id
+
+    @pytest.mark.asyncio
+    async def test_admin_can_list_users(self, client: AsyncClient, test_user_data, test_recruiter_data, db_session):
+        token_user = await self._register_and_login(client, test_user_data)
+        await self._register_and_login(client, test_recruiter_data)
+
+        from app.core.security import hash_password
+        from app.modules.user.models import User
+        from app.utils.encryption import encryptor
+        from app.utils.phone_hash import hash_phone
+
+        admin_phone = "13700137001"
+        admin = User(
+            phone_hash=hash_phone(admin_phone),
+            phone_encrypted=encryptor.encrypt(admin_phone),
+            password_hash=hash_password("Admin1234"),
+            display_name="管理员",
+            role="admin",
+            status="active",
+        )
+        db_session.add(admin)
+        await db_session.commit()
+
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={"phone": admin_phone, "password": "Admin1234"},
+        )
+        admin_token = login_response.json()["access_token"]
+
+        forbidden = await client.get(
+            "/api/v1/users/admin",
+            headers={"Authorization": f"Bearer {token_user}"},
+        )
+        response = await client.get(
+            "/api/v1/users/admin",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        recruiter_response = await client.get(
+            "/api/v1/users/admin",
+            params={"role": "recruiter"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert forbidden.status_code == 403
+        assert response.status_code == 200
+        assert response.json()["total"] == 3
+        assert {item["role"] for item in response.json()["items"]} == {"seeker", "recruiter", "admin"}
+        assert recruiter_response.status_code == 200
+        assert recruiter_response.json()["total"] == 1
+        assert recruiter_response.json()["items"][0]["role"] == "recruiter"

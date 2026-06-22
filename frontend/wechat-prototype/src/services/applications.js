@@ -4,12 +4,44 @@ export async function createApplication(data) {
   return post('/api/v1/applications', data)
 }
 
+export async function suggestApplicationCoverLetter(data) {
+  return post('/api/v1/applications/cover-letter/suggest', data)
+}
+
 export async function listMyApplications(params = {}) {
   return get('/api/v1/applications/me', params)
 }
 
 export async function listRecruiterApplications(params = {}) {
   return get('/api/v1/applications/recruiter', params)
+}
+
+export async function getRecruiterApplicationStats() {
+  return get('/api/v1/applications/recruiter/stats/summary')
+}
+
+export async function getRecruiterBusinessLoopStats() {
+  return get('/api/v1/applications/recruiter/stats/business-loop')
+}
+
+export async function getRecruiterDeepDiveStats(params = {}) {
+  return get('/api/v1/applications/recruiter/stats/deep-dive', params)
+}
+
+export async function getAdminApplicationStats() {
+  return get('/api/v1/applications/admin/stats/summary')
+}
+
+export async function getAdminBusinessLoopStats() {
+  return get('/api/v1/applications/admin/stats/business-loop')
+}
+
+export async function getAdminDeepDiveStats(params = {}) {
+  return get('/api/v1/applications/admin/stats/deep-dive', params)
+}
+
+export async function getAdminOperationsStats() {
+  return get('/api/v1/applications/admin/stats/operations')
 }
 
 export async function getRecruiterApplication(applicationId) {

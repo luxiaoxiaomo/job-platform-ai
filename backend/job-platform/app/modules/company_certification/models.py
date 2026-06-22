@@ -39,6 +39,7 @@ class CompanyCertification(Base):
     applicant_name = Column(String(50), nullable=True, comment="申请人姓名")
     applicant_title = Column(String(80), nullable=True, comment="申请人职位")
     applicant_phone = Column(String(30), nullable=True, comment="申请人联系电话")
+    applicant_wechat = Column(String(80), nullable=True, comment="申请人微信")
     verification_note = Column(Text, nullable=True, comment="认证补充说明")
     status = Column(String(20), nullable=False, default="pending", comment="状态：pending/approved/rejected")
     reject_reason = Column(Text, nullable=True, comment="驳回原因")

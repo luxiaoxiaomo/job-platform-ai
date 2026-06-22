@@ -1,28 +1,86 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { NavBar } from '../components/ui.jsx'
 import { recruiterNotifications, notificationTypes } from '../mock/data.js'
 import { RecruiterBottomNav } from './RecruiterBottomNav.jsx'
+import { listMyNotifications, markAllNotificationsRead, markNotificationRead } from '../services/index.js'
+
+function mapNotification(item) {
+  return {
+    id: item.id,
+    type: item.type,
+    title: item.title,
+    detail: item.detail,
+    time: item.created_at
+      ? new Date(item.created_at).toLocaleString('zh-CN', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '',
+    read: item.read,
+    action_url: item.action_url,
+    payload: item.payload || {},
+  }
+}
 
 export default function RecruiterNotifications() {
   const navigate = useNavigate()
-  const [notifications, setNotifications] = useState(recruiterNotifications)
+  const [notifications, setNotifications] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const unreadCount = notifications.filter(n => !n.read).length
 
-  const markAllRead = () => {
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    listMyNotifications({ limit: 50 })
+      .then(data => {
+        if (!alive) return
+        setNotifications((data.items || []).map(mapNotification))
+        setError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setNotifications(recruiterNotifications)
+        setError(err.message || '通知加载失败，已显示演示数据')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => { alive = false }
+  }, [])
+
+  const markAllRead = async () => {
+    try {
+      await markAllNotificationsRead()
+    } catch {
+      // Keep local fallback for demo mode.
+    }
     setNotifications(ns => ns.map(n => ({ ...n, read: true })))
   }
 
-  const markRead = (id) => {
+  const markRead = async (id) => {
+    const current = notifications.find(n => n.id === id)
+    if (!current || current.read) return
     setNotifications(ns => ns.map(n => n.id === id ? { ...n, read: true } : n))
+    try {
+      await markNotificationRead(id)
+    } catch {
+      // Optimistic read state is enough when offline.
+    }
   }
 
-  const handleClick = (n) => {
-    markRead(n.id)
-    // 根据通知类型跳转
+  const handleClick = async (n) => {
+    await markRead(n.id)
+    if (n.action_url) {
+      navigate(n.action_url)
+      return
+    }
     if (n.type === 'application' || n.type === 'message') {
       navigate('/recruiter/talent')
-    } else if (n.type === 'review') {
+    } else if (n.type === 'review' || n.type === 'job_review') {
       navigate('/recruiter/jobs')
     } else if (n.type === 'system' || n.type === 'reminder') {
       navigate('/recruiter/stats')
@@ -42,8 +100,18 @@ export default function RecruiterNotifications() {
       </div>
 
       <div className="cell-group">
+        {loading && (
+          <div className="cell">
+            <span className="grow tiny muted">正在加载通知...</span>
+          </div>
+        )}
+        {!loading && error && (
+          <div className="cell">
+            <span className="grow tiny" style={{ color: 'var(--wx-orange)' }}>{error}</span>
+          </div>
+        )}
         {notifications.map(n => {
-          const typeInfo = notificationTypes[n.type]
+          const typeInfo = notificationTypes[n.type] || notificationTypes.system
           return (
             <div
               key={n.id}
@@ -80,9 +148,9 @@ export default function RecruiterNotifications() {
         })}
       </div>
 
-      {notifications.length === 0 && (
+      {!loading && notifications.length === 0 && (
         <div className="empty" style={{ paddingTop: 100 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🔔</div>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>N</div>
           <div>暂无通知</div>
         </div>
       )}

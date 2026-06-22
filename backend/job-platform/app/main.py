@@ -62,20 +62,24 @@ async def health_check():
 
 
 # 注册路由
-from app.api.v1 import ai_prompts, applications, auth, base_data, company_certifications, jobs, resumes, seeker_profiles, users
+from app.api.v1 import ai_prompts, applications, auth, base_data, company_certifications, jobs, matches, messages, notifications, resumes, search, seeker_profiles, users
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["认证"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["用户"])
 app.include_router(company_certifications.router, prefix="/api/v1/company-certifications", tags=["企业认证"])
 app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["jobs"])
+app.include_router(matches.router, prefix="/api/v1/matches", tags=["matches"])
 app.include_router(applications.router, prefix="/api/v1/applications", tags=["applications"])
+app.include_router(messages.router, prefix="/api/v1/messages", tags=["messages"])
+app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
 app.include_router(resumes.router, prefix="/api/v1/resumes", tags=["resumes"])
+app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
 app.include_router(seeker_profiles.router, prefix="/api/v1/seeker-profiles", tags=["seeker-profiles"])
 app.include_router(ai_prompts.router, prefix="/api/v1/ai-prompts", tags=["ai-prompts"])
 app.include_router(base_data.router, prefix="/api/v1/base-data", tags=["base-data"])
 
 # TODO: 其他模块路由
-uploads_dir = Path("uploads")
+uploads_dir = Path(settings.UPLOAD_DIR)
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 

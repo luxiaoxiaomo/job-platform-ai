@@ -65,6 +65,15 @@ export function NavBar({ title, onBack, right, back = true }) {
   )
 }
 
+export function HomeNavLink({ to = '/seeker/home', label = '首页' }) {
+  const navigate = useNavigate()
+  return (
+    <span style={{ color: 'var(--wx-green)', cursor: 'pointer' }} onClick={() => navigate(to)}>
+      {label}
+    </span>
+  )
+}
+
 /* ============ 底部 TabBar ============ */
 export function TabBar({ tabs, active, onChange }) {
   return (

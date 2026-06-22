@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="zh-CN" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #eef3ef;
+      }
+
+      body {
+        font-family: sans-serif;
+        color: #13201a;
+      }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 18% 12%, rgba(0, 178, 105, 0.2), transparent 30%),
+          radial-gradient(circle at 85% 20%, rgba(25, 132, 255, 0.16), transparent 31%),
+          linear-gradient(135deg, #f4f7f2 0%, #e6eee8 48%, #dbe8e6 100%);
+      }
+
+      #root::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0.11;
+        background-image:
+          linear-gradient(rgba(18, 32, 26, 0.18) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(18, 32, 26, 0.18) 1px, transparent 1px);
+        background-size: 58px 58px;
+      }
+
+      .clip {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+
+      .scene-layer {
+        position: absolute;
+        inset: 0;
+        overflow: visible;
+      }
+
+      .brand {
+        position: absolute;
+        top: 54px;
+        left: 72px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        z-index: 20;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        background: #8df2bf;
+        color: #102119;
+        font-size: 28px;
+        font-weight: 900;
+        box-shadow: 0 18px 40px rgba(8, 181, 107, 0.26);
+      }
+
+      .brand-name {
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .brand-sub {
+        margin-top: 4px;
+        color: #4f6058;
+        font-size: 15px;
+      }
+
+      .scene-title {
+        position: absolute;
+        left: 104px;
+        top: 186px;
+        width: 760px;
+        z-index: 10;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        height: 38px;
+        padding: 0 17px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(19, 32, 26, 0.1);
+        color: #126640;
+        font-size: 17px;
+        font-weight: 700;
+        box-shadow: 0 16px 40px rgba(42, 58, 51, 0.08);
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #08b56b;
+        box-shadow: 0 0 0 7px rgba(8, 181, 107, 0.12);
+      }
+
+      h1 {
+        margin-top: 28px;
+        font-size: 92px;
+        line-height: 1.04;
+        font-weight: 900;
+        letter-spacing: 0;
+      }
+
+      .lead {
+        margin-top: 28px;
+        width: 670px;
+        font-size: 28px;
+        line-height: 1.55;
+        color: #41534a;
+      }
+
+      .metric-strip {
+        position: absolute;
+        left: 104px;
+        bottom: 108px;
+        display: flex;
+        gap: 22px;
+        z-index: 10;
+      }
+
+      .metric {
+        width: 198px;
+        height: 126px;
+        padding: 22px 24px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid rgba(19, 32, 26, 0.08);
+        box-shadow: 0 28px 70px rgba(42, 58, 51, 0.1);
+      }
+
+      .metric b {
+        display: block;
+        color: #078150;
+        font-size: 38px;
+        line-height: 1;
+      }
+
+      .metric span {
+        display: block;
+        margin-top: 12px;
+        color: #4f6058;
+        font-size: 16px;
+      }
+
+      .workspace {
+        position: absolute;
+        top: 130px;
+        right: 92px;
+        width: 770px;
+        height: 760px;
+        border-radius: 24px;
+        background: rgba(249, 251, 248, 0.82);
+        border: 1px solid rgba(19, 32, 26, 0.12);
+        box-shadow: 0 45px 120px rgba(27, 48, 41, 0.18);
+        overflow: hidden;
+        z-index: 8;
+      }
+
+      .workspace-top {
+        height: 78px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 28px;
+        border-bottom: 1px solid rgba(19, 32, 26, 0.08);
+        background: rgba(255, 255, 255, 0.52);
+      }
+
+      .window-dots {
+        display: flex;
+        gap: 10px;
+      }
+
+      .window-dots span {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+      }
+
+      .window-dots span:nth-child(1) { background: #ff6b57; }
+      .window-dots span:nth-child(2) { background: #ffc145; }
+      .window-dots span:nth-child(3) { background: #08b56b; }
+
+      .workspace-label {
+        color: #4f6058;
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .kanban {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        padding: 26px;
+      }
+
+      .lane {
+        min-height: 602px;
+        border-radius: 8px;
+        background: rgba(233, 241, 236, 0.72);
+        border: 1px solid rgba(19, 32, 26, 0.08);
+        padding: 16px;
+      }
+
+      .lane-title {
+        color: #3f5048;
+        font-size: 15px;
+        font-weight: 800;
+        margin-bottom: 16px;
+      }
+
+      .job-card,
+      .talent-card {
+        border-radius: 8px;
+        padding: 16px;
+        background: #fff;
+        border: 1px solid rgba(19, 32, 26, 0.08);
+        box-shadow: 0 14px 34px rgba(42, 58, 51, 0.08);
+        margin-bottom: 14px;
+      }
+
+      .job-card strong,
+      .talent-card strong {
+        display: block;
+        font-size: 18px;
+        line-height: 1.2;
+      }
+
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 12px;
+      }
+
+      .tag {
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        color: #126640;
+        background: #e4f6ed;
+      }
+
+      .tag.blue {
+        color: #1762a3;
+        background: #e6f1ff;
+      }
+
+      .tag.gold {
+        color: #725007;
+        background: #fff3d6;
+      }
+
+      .score {
+        margin-top: 16px;
+        height: 8px;
+        border-radius: 99px;
+        background: #dfe8e2;
+        overflow: hidden;
+      }
+
+      .score span {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #08b56b, #18a7ff);
+      }
+
+      .ai-path {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 14;
+      }
+
+      .ai-path svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .flow-line {
+        fill: none;
+        stroke: rgba(8, 181, 107, 0.72);
+        stroke-width: 7;
+        stroke-linecap: round;
+        stroke-dasharray: 18 20;
+      }
+
+      .pulse {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #08b56b;
+        box-shadow: 0 0 0 14px rgba(8, 181, 107, 0.13), 0 0 42px rgba(8, 181, 107, 0.62);
+      }
+
+      .phone {
+        position: absolute;
+        width: 360px;
+        height: 720px;
+        border-radius: 46px;
+        background: #121915;
+        box-shadow: 0 44px 90px rgba(19, 32, 26, 0.24);
+        padding: 16px;
+        overflow: hidden;
+        z-index: 12;
+      }
+
+      .phone.left {
+        left: 990px;
+        top: 198px;
+      }
+
+      .phone.right {
+        right: 98px;
+        top: 220px;
+      }
+
+      .phone-screen {
+        width: 100%;
+        height: 100%;
+        border-radius: 34px;
+        background: #f6f8f6;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .phone-bar {
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 800;
+        background: #fff;
+        border-bottom: 1px solid #e6ece8;
+      }
+
+      .screen-body {
+        padding: 18px;
+      }
+
+      .mini-card {
+        border-radius: 8px;
+        background: #fff;
+        border: 1px solid #e4ece7;
+        padding: 16px;
+        margin-bottom: 14px;
+        box-shadow: 0 10px 24px rgba(42, 58, 51, 0.07);
+      }
+
+      .mini-card strong {
+        display: block;
+        font-size: 16px;
+      }
+
+      .mini-card p {
+        margin-top: 7px;
+        font-size: 13px;
+        color: #687870;
+        line-height: 1.5;
+      }
+
+      .btn {
+        margin-top: 12px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 800;
+        background: #08b56b;
+      }
+
+      .ai-panel {
+        position: absolute;
+        left: 100px;
+        top: 190px;
+        width: 610px;
+        padding: 34px;
+        border-radius: 18px;
+        color: #fff;
+        background: linear-gradient(135deg, #13201a 0%, #173c31 100%);
+        box-shadow: 0 42px 100px rgba(18, 32, 26, 0.26);
+        z-index: 18;
+      }
+
+      .ai-panel h2 {
+        font-size: 56px;
+        line-height: 1.08;
+        letter-spacing: 0;
+      }
+
+      .ai-panel p {
+        margin-top: 18px;
+        font-size: 24px;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.74);
+      }
+
+      .check-list {
+        margin-top: 28px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .check-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .check-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: #08b56b;
+        color: #fff;
+        font-size: 18px;
+      }
+
+      .security-ribbon {
+        position: absolute;
+        right: 118px;
+        bottom: 92px;
+        width: 616px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        z-index: 22;
+      }
+
+      .trust {
+        height: 118px;
+        border-radius: 8px;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(19, 32, 26, 0.1);
+        box-shadow: 0 24px 60px rgba(42, 58, 51, 0.12);
+      }
+
+      .trust b {
+        display: block;
+        font-size: 28px;
+        color: #078150;
+      }
+
+      .trust span {
+        display: block;
+        margin-top: 10px;
+        color: #4f6058;
+        font-size: 15px;
+        line-height: 1.35;
+      }
+
+      .final-card {
+        position: absolute;
+        inset: 132px 136px;
+        border-radius: 28px;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(19, 32, 26, 0.95), rgba(11, 92, 65, 0.92)),
+          linear-gradient(90deg, #13201a, #08b56b);
+        box-shadow: 0 60px 140px rgba(19, 32, 26, 0.28);
+        z-index: 30;
+      }
+
+      .final-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 45%),
+          radial-gradient(circle at 82% 20%, rgba(24, 167, 255, 0.26), transparent 28%);
+      }
+
+      .final-content {
+        position: relative;
+        padding: 84px 88px;
+        color: #fff;
+        z-index: 1;
+      }
+
+      .final-content h2 {
+        width: 1060px;
+        font-size: 86px;
+        line-height: 1.08;
+        letter-spacing: 0;
+      }
+
+      .final-content p {
+        margin-top: 28px;
+        width: 840px;
+        font-size: 30px;
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.78);
+      }
+
+      .final-badges {
+        display: flex;
+        gap: 14px;
+        margin-top: 44px;
+      }
+
+      .final-badges span {
+        height: 44px;
+        padding: 0 18px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .orbit {
+        position: absolute;
+        right: 86px;
+        bottom: 58px;
+        width: 440px;
+        height: 440px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.14);
+      }
+
+      .orbit::before,
+      .orbit::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .orbit::before {
+        inset: 64px;
+      }
+
+      .orbit::after {
+        inset: 132px;
+        background: rgba(255, 255, 255, 0.09);
+      }
+
+      .node {
+        position: absolute;
+        width: 92px;
+        height: 92px;
+        border-radius: 22px;
+        display: grid;
+        place-items: center;
+        color: #13201a;
+        background: #fff;
+        font-size: 34px;
+        font-weight: 900;
+        box-shadow: 0 18px 54px rgba(0, 0, 0, 0.22);
+      }
+
+      .node.n1 { right: 250px; bottom: 438px; }
+      .node.n2 { right: 42px; bottom: 240px; }
+      .node.n3 { right: 362px; bottom: 118px; }
+
+      .caption {
+        position: absolute;
+        left: 72px;
+        right: 72px;
+        bottom: 42px;
+        display: flex;
+        justify-content: space-between;
+        color: #43544c;
+        font-size: 15px;
+        z-index: 50;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="30"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="persistent-ui" class="clip" data-start="0" data-duration="30" data-track-index="1">
+        <div class="brand">
+          <div class="brand-mark">岗</div>
+          <div>
+            <div class="brand-name">空岗信息发布对接平台</div>
+            <div class="brand-sub">AI 增强型招聘协作系统</div>
+          </div>
+        </div>
+        <div class="caption">
+          <span>30s Product Motion Demo</span>
+          <span>Recruiter · Seeker · Admin</span>
+        </div>
+      </div>
+
+      <section id="intro" class="clip" data-start="0" data-duration="8.8" data-track-index="2">
+        <div class="scene-title">
+          <div class="eyebrow">中小企业招聘，从发布到对接更轻</div>
+          <h1>让空岗被看见，<br />让合适的人更快出现。</h1>
+          <p class="lead">岗位发布、AI 代写、候选人匹配、企业认证与审核闭环，统一放进一个微信小程序体验里。</p>
+        </div>
+        <div class="metric-strip">
+          <div class="metric"><b>3端</b><span>企业端 / 求职端 / 管理端</span></div>
+          <div class="metric"><b>AI</b><span>JD 生成与人岗匹配</span></div>
+          <div class="metric"><b>闭环</b><span>认证、审核、沟通、投递</span></div>
+        </div>
+        <div class="workspace">
+          <div class="workspace-top">
+            <div class="window-dots"><span></span><span></span><span></span></div>
+            <div class="workspace-label">Recruitment Workspace</div>
+          </div>
+          <div class="kanban">
+            <div class="lane">
+              <div class="lane-title">岗位待完善</div>
+              <div class="job-card">
+                <strong>前端开发工程师</strong>
+                <div class="tag-row"><span class="tag">React</span><span class="tag">5年经验</span></div>
+                <div class="score"><span></span></div>
+              </div>
+              <div class="job-card">
+                <strong>Java 开发工程师</strong>
+                <div class="tag-row"><span class="tag">Spring Boot</span><span class="tag blue">深圳</span></div>
+                <div class="score"><span></span></div>
+              </div>
+            </div>
+            <div class="lane">
+              <div class="lane-title">AI 匹配中</div>
+              <div class="talent-card">
+                <strong>张伟 · 88%</strong>
+                <div class="tag-row"><span class="tag gold">高意向</span><span class="tag">技术负责人</span></div>
+                <div class="score"><span></span></div>
+              </div>
+              <div class="talent-card">
+                <strong>王丽华 · 82%</strong>
+                <div class="tag-row"><span class="tag">Vue + React</span><span class="tag blue">响应快</span></div>
+                <div class="score"><span></span></div>
+              </div>
+            </div>
+            <div class="lane">
+              <div class="lane-title">可推进沟通</div>
+              <div class="talent-card">
+                <strong>李然 · 92%</strong>
+                <div class="tag-row"><span class="tag">TS专家</span><span class="tag gold">B端SaaS</span></div>
+                <div class="score"><span></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="match" class="clip" data-start="8" data-duration="12.5" data-track-index="3">
+        <div class="scene-layer">
+          <div class="ai-panel">
+            <h2>AI 把岗位要求<br />翻译成可行动线索</h2>
+            <p>自动整理岗位画像、候选人能力标签、沟通意向，把“海量简历”变成可排序的推进列表。</p>
+            <div class="check-list">
+              <div class="check-item"><span class="check-icon">✓</span><span>JD 代写与批量导入</span></div>
+              <div class="check-item"><span class="check-icon">✓</span><span>候选人匹配分与标签解释</span></div>
+              <div class="check-item"><span class="check-icon">✓</span><span>聊天意向识别与面试提醒</span></div>
+            </div>
+          </div>
+          <div class="ai-path">
+            <svg viewBox="0 0 1920 1080" aria-hidden="true">
+              <path class="flow-line" d="M 790 496 C 970 330, 1130 328, 1248 426 S 1492 598, 1660 446" />
+              <path class="flow-line" d="M 770 650 C 970 760, 1200 746, 1368 642 S 1540 546, 1695 642" />
+            </svg>
+            <div class="pulse pulse-a"></div>
+            <div class="pulse pulse-b"></div>
+          </div>
+          <div class="phone left">
+            <div class="phone-screen">
+              <div class="phone-bar">企业端 · 岗位发布</div>
+              <div class="screen-body">
+                <div class="mini-card">
+                  <strong>高级前端开发工程师</strong>
+                  <p>AI 已补全职责、技能关键词、薪资区间与亮点描述。</p>
+                  <div class="btn">一键发布审核</div>
+                </div>
+                <div class="mini-card">
+                  <strong>候选人推荐</strong>
+                  <p>李然 92% · 张伟 88% · 王丽华 82%</p>
+                </div>
+                <div class="mini-card">
+                  <strong>沟通建议</strong>
+                  <p>建议优先邀约高意向候选人，48 小时内安排初面。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="phone right">
+            <div class="phone-screen">
+              <div class="phone-bar">求职端 · 精准推荐</div>
+              <div class="screen-body">
+                <div class="mini-card">
+                  <strong>匹配岗位 · 92%</strong>
+                  <p>React / TypeScript / B端平台经验高度匹配。</p>
+                  <div class="btn">立即投递</div>
+                </div>
+                <div class="mini-card">
+                  <strong>企业画像</strong>
+                  <p>团队规模、技术栈、招聘活跃度已整理。</p>
+                </div>
+                <div class="mini-card">
+                  <strong>面试准备</strong>
+                  <p>AI 生成岗位相关面试题与项目讲述建议。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="trust" class="clip" data-start="20" data-duration="5.5" data-track-index="4">
+        <div class="security-ribbon">
+          <div class="trust"><b>认证</b><span>企业资质提交与管理端审核</span></div>
+          <div class="trust"><b>隐私</b><span>手机号哈希与敏感字段加密</span></div>
+          <div class="trust"><b>联调</b><span>前后端 API 闭环已打通</span></div>
+        </div>
+      </section>
+
+      <section id="final" class="clip" data-start="25" data-duration="5" data-track-index="5">
+        <div class="final-card">
+          <div class="final-content">
+            <div class="eyebrow">AI enhanced job matching platform</div>
+            <h2>招聘不是多发几条信息，<br />而是更快找到下一次有效对话。</h2>
+            <p>空岗信息发布对接平台，把岗位、人才、认证、审核与沟通沉淀成一条清晰的增长链路。</p>
+            <div class="final-badges">
+              <span>微信小程序体验</span>
+              <span>FastAPI 后端</span>
+              <span>AI 匹配闭环</span>
+            </div>
+          </div>
+          <div class="orbit"></div>
+          <div class="node n1">企</div>
+          <div class="node n2">AI</div>
+          <div class="node n3">才</div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.set(["#match", "#trust", "#final"], { autoAlpha: 0 });
+      tl.set(".pulse-a", { x: 784, y: 488, scale: 0 });
+      tl.set(".pulse-b", { x: 760, y: 642, scale: 0 });
+
+      tl.from(".brand", { opacity: 0, y: -22, duration: 0.55, ease: "power2.out" }, 0);
+      tl.from("#intro .eyebrow", { opacity: 0, y: 18, duration: 0.5, ease: "power2.out" }, 0.12);
+      tl.from("#intro h1", { opacity: 0, y: 46, duration: 0.72, ease: "power3.out" }, 0.28);
+      tl.from("#intro .lead", { opacity: 0, y: 26, duration: 0.6, ease: "power2.out" }, 0.68);
+      tl.from(".metric", { opacity: 0, y: 28, stagger: 0.08, duration: 0.48, ease: "power2.out" }, 1.0);
+      tl.from(".workspace", { opacity: 0, x: 70, rotate: 1.2, duration: 0.72, ease: "power3.out" }, 0.42);
+      tl.from(".job-card, .talent-card", { opacity: 0, y: 34, stagger: 0.06, duration: 0.45, ease: "power2.out" }, 1.05);
+      tl.to(".score span", { width: "86%", stagger: 0.08, duration: 0.78, ease: "power2.inOut" }, 1.45);
+
+      tl.to("#intro .scene-title", { opacity: 0, x: -62, duration: 0.75, ease: "power2.in" }, 7.65);
+      tl.to(".metric-strip", { opacity: 0, y: 44, duration: 0.65, ease: "power2.in" }, 7.75);
+      tl.to(".workspace", { scale: 0.84, x: 120, y: -18, duration: 1.15, ease: "power3.inOut" }, 7.78);
+      tl.to("#match", { autoAlpha: 1, duration: 0.01 }, 8.0);
+      tl.from(".ai-panel", { opacity: 0, x: -86, duration: 0.9, ease: "power3.out" }, 8.25);
+      tl.from(".check-item", { opacity: 0, x: -22, stagger: 0.16, duration: 0.6, ease: "power2.out" }, 10.35);
+      tl.from(".phone.left", { opacity: 0, y: 90, rotate: -4, duration: 0.95, ease: "power3.out" }, 9.1);
+      tl.from(".phone.right", { opacity: 0, y: 110, rotate: 4, duration: 0.95, ease: "power3.out" }, 9.55);
+      tl.from(".mini-card", { opacity: 0, y: 22, stagger: 0.08, duration: 0.52, ease: "power2.out" }, 11.35);
+      tl.from(".flow-line", { opacity: 0, strokeDashoffset: 260, duration: 1.1, stagger: 0.22, ease: "power2.out" }, 13.4);
+      tl.to(".pulse-a", {
+        scale: 1,
+        duration: 0.18,
+        ease: "power2.out"
+      }, 14.0);
+      tl.to(".pulse-a", {
+        keyframes: [
+          { x: 964, y: 364, duration: 0.42 },
+          { x: 1242, y: 428, duration: 0.46 },
+          { x: 1660, y: 446, duration: 0.54 }
+        ],
+        ease: "power2.inOut"
+      }, 14.15);
+      tl.to(".pulse-b", { scale: 1, duration: 0.18, ease: "power2.out" }, 15.4);
+      tl.to(".pulse-b", {
+        keyframes: [
+          { x: 970, y: 760, duration: 0.42 },
+          { x: 1368, y: 642, duration: 0.46 },
+          { x: 1695, y: 642, duration: 0.5 }
+        ],
+        ease: "power2.inOut"
+      }, 15.55);
+
+      tl.to("#trust", { autoAlpha: 1, duration: 0.01 }, 20.0);
+      tl.from(".trust", { opacity: 0, y: 42, stagger: 0.14, duration: 0.65, ease: "power2.out" }, 20.18);
+      tl.to(".phone.left", { x: -22, y: -16, duration: 1.1, ease: "sine.inOut" }, 20.22);
+      tl.to(".phone.right", { x: 18, y: 14, duration: 1.1, ease: "sine.inOut" }, 20.22);
+      tl.to(".ai-panel", { opacity: 0, x: -60, duration: 0.7, ease: "power2.in" }, 23.45);
+      tl.to([".phone", ".workspace", "#trust"], { opacity: 0, scale: 0.96, duration: 0.75, ease: "power2.in" }, 24.15);
+
+      tl.to("#final", { autoAlpha: 1, duration: 0.01 }, 25.0);
+      tl.from(".final-card", { opacity: 0, scale: 0.92, y: 50, duration: 0.9, ease: "power3.out" }, 25.05);
+      tl.from("#final .eyebrow", { opacity: 0, y: 20, duration: 0.5, ease: "power2.out" }, 25.45);
+      tl.from(".final-content h2", { opacity: 0, y: 44, duration: 0.85, ease: "power3.out" }, 25.72);
+      tl.from(".final-content p", { opacity: 0, y: 26, duration: 0.65, ease: "power2.out" }, 26.58);
+      tl.from(".final-badges span", { opacity: 0, y: 16, stagger: 0.12, duration: 0.45, ease: "power2.out" }, 27.35);
+      tl.from(".orbit", { opacity: 0, rotate: -24, scale: 0.8, duration: 0.95, ease: "power2.out", overwrite: "auto" }, 26.05);
+      tl.from(".node", { opacity: 0, scale: 0.65, stagger: 0.16, duration: 0.55, ease: "back.out(1.7)" }, 27.05);
+      tl.to(".orbit", { rotate: 18, duration: 3.6, ease: "none" }, 26.1);
+      tl.set(".phone, .workspace, #trust", { opacity: 0 }, 25.0);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

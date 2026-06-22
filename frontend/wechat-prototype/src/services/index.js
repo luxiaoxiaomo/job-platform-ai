@@ -19,6 +19,12 @@ export * from './aiPrompts.js'
 export * from './applications.js'
 export * from './resumes.js'
 export * from './seekerProfile.js'
+export * from './matches.js'
+export * from './matchRules.js'
+export * from './messages.js'
+export * from './notifications.js'
+export * from './users.js'
+export * from './baseData.js'
 
 export const userService = USE_MOCK ? {
   getCurrentUserInfo: mockAuthService.getCurrentUserInfo,

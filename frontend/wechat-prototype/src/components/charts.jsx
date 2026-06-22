@@ -5,7 +5,7 @@ import React from 'react'
 */
 export function RadarChart({ data, size = 220, color = '#07C160' }) {
   const cx = size / 2, cy = size / 2
-  const R = size / 2 - 34
+  const R = size / 2 - 42  // 从 34 改为 42，给标签更多空间
   const n = data.length
   const levels = [0.25, 0.5, 0.75, 1]
 
@@ -35,12 +35,30 @@ export function RadarChart({ data, size = 220, color = '#07C160' }) {
       })}
       {/* 标签 */}
       {data.map((d, i) => {
-        const [x, y] = pt(i, R + 16)
+        const [x, y] = pt(i, R + 22)
+        const label = d.key
+        // 四字或更长的标签换行显示
+        if (label.length >= 4) {
+          return (
+            <g key={i}>
+              <text x={x} y={y - 6} fontSize="11" fill="#666"
+                textAnchor={Math.abs(x - cx) < 6 ? 'middle' : x > cx ? 'start' : 'end'}
+                dominantBaseline="middle">
+                {label.slice(0, 2)}
+              </text>
+              <text x={x} y={y + 6} fontSize="11" fill="#666"
+                textAnchor={Math.abs(x - cx) < 6 ? 'middle' : x > cx ? 'start' : 'end'}
+                dominantBaseline="middle">
+                {label.slice(2)}
+              </text>
+            </g>
+          )
+        }
         return (
-          <text key={i} x={x} y={y} fontSize="10" fill="#888"
+          <text key={i} x={x} y={y} fontSize="11" fill="#666"
             textAnchor={Math.abs(x - cx) < 6 ? 'middle' : x > cx ? 'start' : 'end'}
             dominantBaseline="middle">
-            {d.key}
+            {label}
           </text>
         )
       })}

@@ -98,6 +98,7 @@ class TestCompanyCertifications:
                 "work_email": "hr@yichuang.example.com",
                 "applicant_name": "李华",
                 "applicant_title": "HRBP",
+                "applicant_wechat": "hr_yichuang",
             },
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -107,6 +108,7 @@ class TestCompanyCertifications:
         assert data["status"] == "pending"
         assert data["verification_method"] == "enterprise_email"
         assert data["work_email"] == "hr@yichuang.example.com"
+        assert data["applicant_wechat"] == "hr_yichuang"
         assert data["unified_social_credit_code"] is None
 
     @pytest.mark.asyncio

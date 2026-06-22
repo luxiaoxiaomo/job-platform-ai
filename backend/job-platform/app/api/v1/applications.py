@@ -10,11 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.modules.application.schemas import (
+    AdminOperationsStatsResponse,
     ApplicationCreate,
+    ApplicationCoverLetterSuggestRequest,
+    ApplicationCoverLetterSuggestResponse,
     ApplicationDetailResponse,
     ApplicationListResponse,
     ApplicationResponse,
+    ApplicationStatsResponse,
     ApplicationStatusUpdate,
+    BusinessLoopStatsResponse,
+    DeepDiveStatsResponse,
 )
 from app.modules.application.service import ApplicationService
 from app.modules.user.models import User
@@ -30,6 +36,16 @@ async def create_application(
 ):
     """Apply to an active public job."""
     return await ApplicationService.create(db, current_user, data)
+
+
+@router.post("/cover-letter/suggest", response_model=ApplicationCoverLetterSuggestResponse)
+async def suggest_application_cover_letter(
+    data: ApplicationCoverLetterSuggestRequest,
+    current_user: User = Depends(require_role("seeker")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a cover message suggestion before applying."""
+    return await ApplicationService.suggest_cover_letter(db, current_user, data.job_id)
 
 
 @router.get("/me", response_model=ApplicationListResponse)
@@ -76,6 +92,78 @@ async def list_recruiter_applications(
         limit=limit,
         status_filter=status,
     )
+
+
+@router.get("/recruiter/stats/summary", response_model=ApplicationStatsResponse)
+async def get_recruiter_application_stats(
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize current recruiter's application statuses."""
+    return await ApplicationService.get_recruiter_stats(db, current_user)
+
+
+@router.get("/recruiter/stats/business-loop", response_model=BusinessLoopStatsResponse)
+async def get_recruiter_business_loop_stats(
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize current recruiter's full PRD business loop."""
+    return await ApplicationService.get_recruiter_business_loop_stats(db, current_user)
+
+
+@router.get("/recruiter/stats/deep-dive", response_model=DeepDiveStatsResponse)
+async def get_recruiter_deep_dive_stats(
+    days: int = Query(7, ge=1, le=30),
+    limit: int = Query(5, ge=1, le=20),
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize recruiter stats with trend and per-job ranking details."""
+    return await ApplicationService.get_recruiter_deep_dive_stats(
+        db,
+        current_user,
+        days=days,
+        limit=limit,
+    )
+
+
+@router.get("/admin/stats/summary", response_model=ApplicationStatsResponse)
+async def get_admin_application_stats(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize platform-wide application statuses for admin."""
+    return await ApplicationService.get_admin_stats(db)
+
+
+@router.get("/admin/stats/business-loop", response_model=BusinessLoopStatsResponse)
+async def get_admin_business_loop_stats(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize platform-wide PRD business loop."""
+    return await ApplicationService.get_admin_business_loop_stats(db)
+
+
+@router.get("/admin/stats/deep-dive", response_model=DeepDiveStatsResponse)
+async def get_admin_deep_dive_stats(
+    days: int = Query(7, ge=1, le=30),
+    limit: int = Query(5, ge=1, le=20),
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize platform stats with trend and per-job ranking details."""
+    return await ApplicationService.get_admin_deep_dive_stats(db, days=days, limit=limit)
+
+
+@router.get("/admin/stats/operations", response_model=AdminOperationsStatsResponse)
+async def get_admin_operations_stats(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize platform operations metrics for admin dashboard."""
+    return await ApplicationService.get_admin_operations_stats(db)
 
 
 @router.get("/recruiter/{application_id}", response_model=ApplicationDetailResponse)

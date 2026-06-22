@@ -2,6 +2,7 @@
 应用配置管理
 从环境变量读取配置
 """
+from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -53,12 +54,29 @@ class Settings(BaseSettings):
 
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+    UPLOAD_DIR: str = str(Path(__file__).resolve().parents[2] / "uploads")
 
     # OCR configuration
     OCR_PROVIDER: str = "mock"  # mock/rapidocr
     OCR_CONFIDENCE_THRESHOLD: float = 0.5
     OCR_PDF_MAX_PAGES: int = 3
     OCR_PDF_RENDER_SCALE: float = 2.0
+
+    # WeChat notification preparation
+    # dry_run keeps local behavior testable without real credentials.
+    # live calls the WeChat service account template-message API.
+    # disabled closes due push tasks without attempting external delivery.
+    WECHAT_PUSH_MODE: str = "dry_run"  # disabled/dry_run/live
+    WECHAT_API_BASE_URL: str = "https://api.weixin.qq.com"
+    WECHAT_APP_ID: str = ""
+    WECHAT_APP_SECRET: str = ""
+    WECHAT_TEMPLATE_ACTION_BASE_URL: str = ""
+    WECHAT_TEMPLATE_DEFAULT: str = ""
+    WECHAT_TEMPLATE_JOB_REVIEW: str = ""
+    WECHAT_TEMPLATE_MESSAGE: str = ""
+    WECHAT_TEMPLATE_APPLICATION: str = ""
+    WECHAT_TEMPLATE_APPLICATION_STATUS: str = ""
+    WECHAT_TEMPLATE_MATCH: str = ""
 
     # Celery配置
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"

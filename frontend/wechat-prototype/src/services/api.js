@@ -2,7 +2,8 @@
  * API Client - 统一请求封装
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8003'
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8003'
+export const API_BASE_URL = rawApiBaseUrl.replace('://localhost', '://127.0.0.1')
 
 /**
  * 统一请求方法
@@ -98,4 +99,15 @@ export async function put(endpoint, data) {
  */
 export async function del(endpoint) {
   return request(endpoint, { method: 'DELETE' })
+}
+
+
+/**
+ * PATCH??
+ */
+export async function patch(endpoint, data) {
+  return request(endpoint, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 }

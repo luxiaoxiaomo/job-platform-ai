@@ -35,6 +35,22 @@ class ApplicationStatusUpdate(BaseModel):
         return value.strip() if value else value
 
 
+class ApplicationCoverLetterSuggestRequest(BaseModel):
+    """Generate a cover message suggestion before application submission."""
+
+    job_id: int = Field(..., gt=0)
+
+
+class ApplicationCoverLetterSuggestResponse(BaseModel):
+    """AI-assisted cover message suggestion with deterministic fallback."""
+
+    job_id: int
+    cover_message: str
+    source: str = "rule_fallback"
+    highlights: list[str] = Field(default_factory=list)
+    fallback_used: bool = True
+
+
 class ApplicationResponse(BaseModel):
     """Application response."""
 
@@ -85,3 +101,89 @@ class ApplicationListResponse(BaseModel):
     total: int
     skip: int
     limit: int
+
+
+class ApplicationStatsResponse(BaseModel):
+    """Recruiter application funnel summary."""
+
+    submitted_count: int = 0
+    viewed_count: int = 0
+    interview_invited_count: int = 0
+    rejected_count: int = 0
+    hired_count: int = 0
+    total_count: int = 0
+
+
+class BusinessLoopStatsResponse(BaseModel):
+    """Unified PRD business loop statistics."""
+
+    job_count: int = 0
+    view_count: int = 0
+    conversation_count: int = 0
+    application_count: int = 0
+    submitted_count: int = 0
+    processed_count: int = 0
+    viewed_count: int = 0
+    interview_invited_count: int = 0
+    rejected_count: int = 0
+    hired_count: int = 0
+    contact_exchange_count: int = 0
+    successful_connection_count: int = 0
+    pending_exchange_count: int = 0
+    declined_exchange_count: int = 0
+    view_to_conversation_rate: float = 0
+    conversation_to_application_rate: float = 0
+    application_process_rate: float = 0
+    application_to_connection_rate: float = 0
+    successful_connection_definition: str = "contact_exchange.status = accepted"
+
+
+class StatsTrendPointResponse(BaseModel):
+    """One day of business-loop trend metrics."""
+
+    date: str
+    view_count: int = 0
+    conversation_count: int = 0
+    application_count: int = 0
+    successful_connection_count: int = 0
+
+
+class JobStatsRankingItemResponse(BaseModel):
+    """Per-job ranking metrics for recruiter/admin stats dashboards."""
+
+    job_id: int
+    title: str
+    status: str
+    view_count: int = 0
+    conversation_count: int = 0
+    application_count: int = 0
+    successful_connection_count: int = 0
+    application_rate: float = 0
+    connection_rate: float = 0
+
+
+class DeepDiveStatsResponse(BaseModel):
+    """Stats dashboard payload with trend, ranking and distribution details."""
+
+    summary: BusinessLoopStatsResponse
+    trend_days: int
+    trend: list[StatsTrendPointResponse] = Field(default_factory=list)
+    top_jobs: list[JobStatsRankingItemResponse] = Field(default_factory=list)
+    application_status_distribution: dict[str, int] = Field(default_factory=dict)
+    successful_connection_definition: str = "contact_exchange.status = accepted"
+
+
+class AdminOperationsStatsResponse(BaseModel):
+    """Admin platform operations dashboard summary."""
+
+    today_new_user_count: int = 0
+    today_new_job_count: int = 0
+    today_new_application_count: int = 0
+    active_job_count: int = 0
+    pending_job_review_count: int = 0
+    pending_certification_count: int = 0
+    approved_certification_count: int = 0
+    rejected_certification_count: int = 0
+    certification_total_count: int = 0
+    certification_approval_rate: float = 0
+    application_process_rate: float = 0

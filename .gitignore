@@ -48,3 +48,7 @@ Thumbs.db
 
 # Tool-local metadata
 .claude/
+.codex/
+.tmp/
+frontend/wechat-prototype/.npm-cache/
+frontend/wechat-prototype/test-results/

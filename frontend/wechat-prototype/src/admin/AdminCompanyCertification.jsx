@@ -4,6 +4,8 @@ import { NavBar, AIBadge, useToast } from '../components/ui.jsx'
 import {
   listCompanyCertifications,
   getCompanyCertification,
+  getCurrentUser,
+  logout,
   reviewCompanyCertification,
 } from '../services/index.js'
 import { API_BASE_URL } from '../services/api.js'
@@ -464,6 +466,8 @@ export function AdminCompanyCertificationDesktopDetail() {
   const navigate = useNavigate()
   const { id } = useParams()
   const toast = useToast()
+  const currentUser = getCurrentUser()
+  const adminName = currentUser?.display_name || currentUser?.phone || 'admin'
 
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -585,7 +589,10 @@ export function AdminCompanyCertificationDesktopDetail() {
       <main className="admin-main">
         <header className="admin-topbar">
           <span className="at-title">企业认证审核详情</span>
-          <div className="at-right"><span>管理员 · admin</span></div>
+          <div className="at-right">
+            <span className="admin-user-label">管理员 · {adminName}</span>
+            <button type="button" className="admin-logout-btn" onClick={logout}>退出登录</button>
+          </div>
         </header>
 
         <div className="admin-content">

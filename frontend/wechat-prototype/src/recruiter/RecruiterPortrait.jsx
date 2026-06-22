@@ -1,11 +1,10 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { NavBar, AIBadge, AICard, useToast } from '../components/ui.jsx'
 import { RadarChart, ScoreBar } from '../components/charts.jsx'
 import { companyProfile, jobProfile, jdAttractiveness } from '../mock/data.js'
 import { getCurrentUser } from '../services/index.js'
-
-const tagClsMap = { green: 'tag-green', blue: 'tag-blue', orange: 'tag-orange', gray: 'tag-gray' }
+import { pickPublicTagNames, usePublicTagOptions } from '../common/usePublicTagOptions.js'
 
 /* ============ 企业画像 ============ */
 export function RecruiterCompanyPortrait() {
@@ -13,12 +12,13 @@ export function RecruiterCompanyPortrait() {
   const toast = useToast()
   const [searchParams] = useSearchParams()
   const isFresh = searchParams.get('fresh') === 'true'
-  const [gen, setGen] = useState(true) // 已生成
   const currentUser = getCurrentUser()
   const c = {
     ...companyProfile,
     name: currentUser?.display_name || companyProfile.name,
   }
+  const { tagOptions, tagOptionsLoading } = usePublicTagOptions()
+  const companyTagNames = pickPublicTagNames(tagOptions, 1, 6)
 
   return (
     <>
@@ -39,7 +39,9 @@ export function RecruiterCompanyPortrait() {
         <div className="cell-group-title">企业标签</div>
         <div className="cell-group"><div style={{ padding: 16 }}>
           <div className="tagcloud">
-            {c.tags.map(t => <span key={t.t} className={`tag ${tagClsMap[t.c]}`} style={{ fontSize: 13, padding: '5px 12px' }}>{t.t}</span>)}
+            {companyTagNames.length > 0
+              ? companyTagNames.map(t => <span key={t} className="tag tag-green" style={{ fontSize: 13, padding: '5px 12px' }}>{t}</span>)
+              : <span className="tiny muted">{tagOptionsLoading ? '标签加载中...' : '后台标签库暂无可用标签'}</span>}
           </div>
         </div></div>
 
@@ -61,16 +63,9 @@ export function RecruiterJobPortrait() {
   const toast = useToast()
   const [searchParams] = useSearchParams()
   const isFresh = searchParams.get('fresh') === 'true'
-  const [tags, setTags] = useState([...jobProfile.tags])
-  const [newTag, setNewTag] = useState('')
   const j = jobProfile
-
-  const addTag = () => {
-    if (!newTag.trim()) return
-    setTags(ts => [...ts, newTag.trim()])
-    setNewTag('')
-    toast('标签已添加')
-  }
+  const { tagOptions, tagOptionsLoading } = usePublicTagOptions()
+  const jobTagNames = pickPublicTagNames(tagOptions, 2, 8)
 
   return (
     <>
@@ -91,15 +86,11 @@ export function RecruiterJobPortrait() {
         <div className="cell-group-title">岗位标签（可编辑）</div>
         <div className="cell-group"><div style={{ padding: 16 }}>
           <div className="tagcloud" style={{ marginBottom: 8 }}>
-            {tags.map(t => <span key={t} className="tag tag-green" style={{ fontSize: 13, padding: '5px 12px', cursor: 'pointer' }}
-              onClick={() => { setTags(ts => ts.filter(x => x !== t)); toast('标签已移除') }}>{t} ✕</span>)}
+            {jobTagNames.length > 0
+              ? jobTagNames.map(t => <span key={t} className="tag tag-green" style={{ fontSize: 13, padding: '5px 12px' }}>{t}</span>)
+              : <span className="tiny muted">{tagOptionsLoading ? '标签加载中...' : '后台标签库暂无可用标签'}</span>}
           </div>
-          <div className="row gap6">
-            <input className="grow" value={newTag} placeholder="+ 添加自定义标签" onChange={e => setNewTag(e.target.value)}
-              style={{ background: 'var(--wx-surface-2)', borderRadius: 8, padding: '6px 10px', fontSize: 13 }}
-              onKeyDown={e => e.key === 'Enter' && addTag()} />
-            <button className="btn btn-weak btn-sm" onClick={addTag} style={{ flexShrink: 0 }}>添加</button>
-          </div>
+          <div className="tiny muted">标签来自后台 base-data 标签库，发布岗位时保存统一 ID。</div>
         </div></div>
 
         <div className="cell-group-title">岗位维度</div>

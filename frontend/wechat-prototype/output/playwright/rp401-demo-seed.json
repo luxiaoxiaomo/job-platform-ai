@@ -1,0 +1,28 @@
+{
+  "seeded_at": "2026-06-22T09:50:46.151047+00:00",
+  "admin": {
+    "phone": "13700137001",
+    "password": "Admin1234"
+  },
+  "recruiter": {
+    "phone": "13940100001",
+    "password": "Recruiter123"
+  },
+  "seeker_password": "Test1234",
+  "rule_config_id": 24,
+  "experiment_id": 7,
+  "position_category": "RP401-Tech",
+  "standard_position_id": 2,
+  "risk_city": "RP401-Shanghai",
+  "healthy_city": "RP401-Beijing",
+  "risk_job_id": 20,
+  "healthy_job_id": 21,
+  "match_count": 240,
+  "expected": {
+    "risk_city_application_rate": 0,
+    "healthy_city_application_rate": 100,
+    "experiment_confidence": "treatment_likely_better",
+    "minimum_anomalies": 2,
+    "minimum_suggestions": 1
+  }
+}

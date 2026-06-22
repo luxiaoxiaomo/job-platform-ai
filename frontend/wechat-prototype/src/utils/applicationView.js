@@ -1,7 +1,7 @@
 export const applicationStatusText = {
   submitted: '已投递',
   viewed: '已查看',
-  interview_invited: '邀面',
+  interview_invited: '邀约面试',
   rejected: '已拒绝',
   hired: '已录用',
 }
