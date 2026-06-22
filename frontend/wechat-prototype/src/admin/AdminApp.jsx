@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../components/ui.jsx'
 import { LineChart, ScoreBar } from '../components/charts.jsx'
-import { adminStats, adminUsers, adminAIMetrics, adminJobLib } from '../mock/data.js'
+import { adminStats, adminAIMetrics } from '../mock/data.js'
 import {
   createPromptConfig,
   getActivePromptConfig,
@@ -14,6 +14,26 @@ import {
   reviewJob,
   reviewCompanyCertification,
   testPromptConfig,
+  getDefaultMatchRuleConfig,
+  getAdminApplicationStats,
+  getAdminBusinessLoopStats,
+  getAdminOperationsStats,
+  getContactExchangeStats,
+  getCurrentUser,
+  getStandardPosition,
+  getTagLibraryItem,
+  listAdminNotificationPushTasks,
+  listUsersForAdmin,
+  logout,
+  runAdminNotificationPushWorker,
+  updateAdminNotificationPushTaskStatus,
+  createTagLibraryItem,
+  createStandardPosition,
+  listTagLibraryItems,
+  listBaseDataOperationLogs,
+  listStandardPositions,
+  updateTagLibraryItem,
+  updateStandardPosition,
 } from '../services/index.js'
 import '../styles/admin.css'
 
@@ -22,7 +42,12 @@ const NAV = [
   { key: 'review', icon: '✅', label: '审核管理' },
   { key: 'users', icon: '👥', label: '用户管理' },
   { key: 'ai', icon: '⚡', label: 'AI 监控' },
-  { key: 'data', icon: '🗂', label: '基础数据' },
+  { key: 'data-overview', icon: '🗂', label: '基础数据概览' },
+  { key: 'data-positions', icon: '💼', label: '标准职位库' },
+  { key: 'data-tags', icon: '🏷', label: '标签库', path: '/admin/tags' },
+  { key: 'data-rules', icon: '🎯', label: '匹配规则' },
+  { key: 'data-logs', icon: '🧾', label: '操作日志' },
+  { key: 'data-push', icon: '🔔', label: '推送队列' },
 ]
 
 const CERT_STATUS_FILTERS = [
@@ -45,16 +70,34 @@ const CERT_METHOD_LABELS = {
 }
 
 export function AdminApp() {
-  const [page, setPage] = useState('dash')
   const navigate = useNavigate()
-  const title = NAV.find(n => n.key === page).label
+  const location = useLocation()
+  const [page, setPage] = useState(location.state?.page || 'dash')
+  const currentUser = getCurrentUser()
+  const adminName = currentUser?.display_name || currentUser?.phone || 'admin'
+  const title = NAV.find(n => n.key === page)?.label || '运营后台'
+
+  const openNavItem = (item) => {
+    if (item.path) {
+      navigate(item.path)
+      return
+    }
+    setPage(item.key)
+  }
+
+  useEffect(() => {
+    if (location.state?.page) {
+      setPage(location.state.page)
+    }
+  }, [location.state])
+
   return (
     <div className="admin">
       <aside className="admin-side">
         <div className="admin-brand"><span className="dot" />空岗平台 · 运营后台</div>
         <nav className="admin-nav">
           {NAV.map(n => (
-            <div key={n.key} className={`nav-item ${page === n.key ? 'active' : ''}`} onClick={() => setPage(n.key)}>
+            <div key={n.key} className={`nav-item ${page === n.key ? 'active' : ''}`} onClick={() => openNavItem(n)}>
               <span className="ico">{n.icon}</span>{n.label}
             </div>
           ))}
@@ -64,24 +107,432 @@ export function AdminApp() {
       <main className="admin-main">
         <header className="admin-topbar">
           <span className="at-title">{title}</span>
-          <div className="at-right"><span>🔔</span><span>管理员 · admin</span></div>
+          <div className="at-right">
+            <span>🔔</span>
+            <span>管理员 · {adminName}</span>
+            <button type="button" className="a-btn sm" onClick={logout}>退出登录</button>
+          </div>
         </header>
         <div className="admin-content">
           {page === 'dash' && <Dash />}
           {page === 'review' && <ReviewRealV2 />}
           {page === 'users' && <Users />}
           {page === 'ai' && <AIMonitor />}
-          {page === 'data' && <BaseData />}
+          {page === 'data-overview' && <BaseData section="overview" setPage={setPage} />}
+          {page === 'data-positions' && <BaseData section="positions" setPage={setPage} />}
+          {page === 'data-tags' && <BaseData section="tags" setPage={setPage} />}
+          {page === 'data-rules' && <BaseData section="rules" setPage={setPage} />}
+          {page === 'data-logs' && <BaseDataOperationLogs />}
+          {page === 'data-push' && <PushQueueCard />}
         </div>
       </main>
     </div>
   )
 }
 
+function formatAdminDate(value) {
+  return value ? new Date(value).toLocaleString('zh-CN') : '-'
+}
+
+function BaseDataStatusTag({ status }) {
+  const active = status === 'active'
+  return <span className={`a-tag ${active ? 'pass' : 'gray'}`}>{active ? '启用' : status === 'inactive' ? '停用' : status || '-'}</span>
+}
+
+function AdminDetailShell({ title, activePage, backPage, backPath, backText, children }) {
+  const navigate = useNavigate()
+  const currentUser = getCurrentUser()
+  const adminName = currentUser?.display_name || currentUser?.phone || 'admin'
+
+  const goBack = () => {
+    if (backPath) {
+      navigate(backPath)
+      return
+    }
+    navigate('/admin', { state: { page: backPage } })
+  }
+
+  const openNavItem = (item) => {
+    if (item.path) {
+      navigate(item.path)
+      return
+    }
+    navigate('/admin', { state: { page: item.key } })
+  }
+
+  return (
+    <div className="admin">
+      <aside className="admin-side">
+        <div className="admin-brand"><span className="dot" />空岗平台 · 运营后台</div>
+        <nav className="admin-nav">
+          {NAV.map(item => (
+            <div
+              key={item.key}
+              className={`nav-item ${activePage === item.key ? 'active' : ''}`}
+              onClick={() => openNavItem(item)}
+            >
+              <span className="ico">{item.icon}</span>{item.label}
+            </div>
+          ))}
+        </nav>
+        <div className="admin-side-foot" onClick={goBack}>{backText}</div>
+      </aside>
+      <main className="admin-main">
+        <header className="admin-topbar">
+          <span className="at-title">{title}</span>
+          <div className="at-right">
+            <span>管理员 · {adminName}</span>
+            <button type="button" className="a-btn sm" onClick={logout}>退出登录</button>
+          </div>
+        </header>
+        <div className="admin-content">{children}</div>
+      </main>
+    </div>
+  )
+}
+
+function DetailState({ loading, error, emptyText }) {
+  if (loading) {
+    return <div className="admin-card"><div style={{ padding: 40, textAlign: 'center', color: 'var(--a-text-2)' }}>加载中...</div></div>
+  }
+  if (error) {
+    return <div className="admin-card"><div style={{ padding: 40, textAlign: 'center', color: '#E54545' }}>{error}</div></div>
+  }
+  return <div className="admin-card"><div style={{ padding: 40, textAlign: 'center', color: 'var(--a-text-2)' }}>{emptyText}</div></div>
+}
+
+function SnapshotSummary({ snapshot }) {
+  if (!snapshot) return <span>-</span>
+  const keys = ['name', 'category', 'status', 'sort_order', 'parent_id']
+  const parts = keys
+    .filter(key => snapshot[key] !== undefined && snapshot[key] !== null && snapshot[key] !== '')
+    .map(key => `${key}: ${Array.isArray(snapshot[key]) ? snapshot[key].join(', ') : snapshot[key]}`)
+  return <span>{parts.length > 0 ? parts.join('；') : JSON.stringify(snapshot)}</span>
+}
+
+function BaseDataDetailLogs({ logs }) {
+  return (
+    <div className="admin-card">
+      <div className="ac-title">最近操作日志</div>
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>动作</th>
+            <th>操作人</th>
+            <th>变更前</th>
+            <th>变更后</th>
+            <th>时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {logs.length > 0 ? logs.map(log => (
+            <tr key={log.id}>
+              <td><span className="a-tag blue">{log.action}</span></td>
+              <td>{log.actor_id || '-'}</td>
+              <td className="tiny muted"><SnapshotSummary snapshot={log.before} /></td>
+              <td className="tiny muted"><SnapshotSummary snapshot={log.after} /></td>
+              <td>{formatAdminDate(log.created_at)}</td>
+            </tr>
+          )) : (
+            <tr><td colSpan="5" style={{ color: 'var(--a-text-2)' }}>暂无操作日志。</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function AdminStandardPositionDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [position, setPosition] = useState(null)
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        setLoading(true)
+        const [detail, logData] = await Promise.all([
+          getStandardPosition(id),
+          listBaseDataOperationLogs({ resource_type: 'standard_position', resource_id: id, limit: 10 }),
+        ])
+        if (!alive) return
+        setPosition(detail)
+        setLogs(logData.items || [])
+        setError('')
+      } catch (err) {
+        if (!alive) return
+        setPosition(null)
+        setLogs([])
+        setError(err.message || '标准职位详情加载失败')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [id])
+
+  return (
+    <AdminDetailShell
+      title="标准职位详情"
+      activePage="data-positions"
+      backPage="data-positions"
+      backText="返回标准职位库"
+    >
+      {loading || error || !position ? (
+        <DetailState loading={loading} error={error} emptyText="标准职位不存在" />
+      ) : (
+        <>
+          <div className="admin-card">
+            <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+              <span>标准职位详情</span>
+              <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
+                <button type="button" className="a-btn sm" onClick={() => navigate('/admin', { state: { page: 'data-positions' } })}>返回列表</button>
+              </div>
+            </div>
+            <div className="admin-info-grid">
+              <div className="info-item"><span className="label">ID</span><span className="value">#{position.id}</span></div>
+              <div className="info-item"><span className="label">标准名称</span><span className="value">{position.name}</span></div>
+              <div className="info-item"><span className="label">分类</span><span className="value">{position.category}</span></div>
+              <div className="info-item"><span className="label">状态</span><BaseDataStatusTag status={position.status} /></div>
+              <div className="info-item"><span className="label">创建人</span><span className="value">{position.created_by || '-'}</span></div>
+              <div className="info-item"><span className="label">更新人</span><span className="value">{position.updated_by || '-'}</span></div>
+              <div className="info-item"><span className="label">创建时间</span><span className="value">{formatAdminDate(position.created_at)}</span></div>
+              <div className="info-item"><span className="label">更新时间</span><span className="value">{formatAdminDate(position.updated_at)}</span></div>
+            </div>
+          </div>
+
+          <div className="admin-card">
+            <div className="ac-title">别名与说明</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <div className="tiny muted" style={{ marginBottom: 8 }}>别名</div>
+                {(position.aliases || []).length > 0 ? position.aliases.map(alias => (
+                  <span key={alias} className="a-tag blue" style={{ marginRight: 8, marginBottom: 6 }}>{alias}</span>
+                )) : <span className="tiny muted">暂无别名</span>}
+              </div>
+              <div>
+                <div className="tiny muted" style={{ marginBottom: 8 }}>说明</div>
+                <div style={{ lineHeight: 1.7, color: 'var(--a-text)' }}>{position.description || '-'}</div>
+              </div>
+            </div>
+          </div>
+
+          <BaseDataDetailLogs logs={logs} />
+        </>
+      )}
+    </AdminDetailShell>
+  )
+}
+
+export function AdminTagLibraryList() {
+  return (
+    <AdminDetailShell
+      title="标签库"
+      activePage="data-tags"
+      backPage="data-overview"
+      backText="返回基础数据概览"
+    >
+      <BaseData section="tags" />
+    </AdminDetailShell>
+  )
+}
+
+export function AdminTagLibraryItemDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [tag, setTag] = useState(null)
+  const [parent, setParent] = useState(null)
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        setLoading(true)
+        const detail = await getTagLibraryItem(id)
+        let parentDetail = null
+        if (detail.parent_id) {
+          try {
+            parentDetail = await getTagLibraryItem(detail.parent_id)
+          } catch {
+            parentDetail = null
+          }
+        }
+        const logData = await listBaseDataOperationLogs({ resource_type: 'tag', resource_id: id, limit: 10 })
+        if (!alive) return
+        setTag(detail)
+        setParent(parentDetail)
+        setLogs(logData.items || [])
+        setError('')
+      } catch (err) {
+        if (!alive) return
+        setTag(null)
+        setParent(null)
+        setLogs([])
+        setError(err.message || '标签详情加载失败')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [id])
+
+  return (
+    <AdminDetailShell
+      title="标签详情"
+      activePage="data-tags"
+      backPath="/admin/tags"
+      backText="返回标签库"
+    >
+      {loading || error || !tag ? (
+        <DetailState loading={loading} error={error} emptyText="标签不存在" />
+      ) : (
+        <>
+          <div className="admin-card">
+            <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+              <span>标签详情</span>
+              <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
+                <button type="button" className="a-btn sm" onClick={() => navigate('/admin/tags')}>返回列表</button>
+              </div>
+            </div>
+            <div className="admin-info-grid">
+              <div className="info-item"><span className="label">ID</span><span className="value">#{tag.id}</span></div>
+              <div className="info-item"><span className="label">标签名称</span><span className="value">{tag.name}</span></div>
+              <div className="info-item"><span className="label">分类</span><span className="value">{tag.category}</span></div>
+              <div className="info-item"><span className="label">父级</span><span className="value">{parent?.name || tag.parent_id || '-'}</span></div>
+              <div className="info-item">
+                <span className="label">颜色</span>
+                <span className="value">
+                  {tag.color ? (
+                    <span className="row" style={{ gap: 8 }}>
+                      <span style={{ width: 16, height: 16, borderRadius: 4, background: tag.color, display: 'inline-block' }} />
+                      {tag.color}
+                    </span>
+                  ) : '-'}
+                </span>
+              </div>
+              <div className="info-item"><span className="label">排序</span><span className="value">{tag.sort_order}</span></div>
+              <div className="info-item"><span className="label">状态</span><BaseDataStatusTag status={tag.status} /></div>
+              <div className="info-item"><span className="label">创建人</span><span className="value">{tag.created_by || '-'}</span></div>
+              <div className="info-item"><span className="label">更新人</span><span className="value">{tag.updated_by || '-'}</span></div>
+              <div className="info-item"><span className="label">创建时间</span><span className="value">{formatAdminDate(tag.created_at)}</span></div>
+              <div className="info-item"><span className="label">更新时间</span><span className="value">{formatAdminDate(tag.updated_at)}</span></div>
+            </div>
+          </div>
+
+          <div className="admin-card">
+            <div className="ac-title">说明</div>
+            <div style={{ lineHeight: 1.7, color: 'var(--a-text)' }}>{tag.description || '-'}</div>
+          </div>
+
+          <BaseDataDetailLogs logs={logs} />
+        </>
+      )}
+    </AdminDetailShell>
+  )
+}
+
 function Dash() {
   const s = adminStats
+  const [operationsStats, setOperationsStats] = useState(null)
+  const [operationsLoading, setOperationsLoading] = useState(true)
+  const [operationsError, setOperationsError] = useState('')
+  const [exchangeStats, setExchangeStats] = useState(null)
+  const [applicationStats, setApplicationStats] = useState(null)
+  const [applicationStatsLoading, setApplicationStatsLoading] = useState(true)
+  const [applicationStatsError, setApplicationStatsError] = useState('')
+  const [businessStats, setBusinessStats] = useState(null)
+  const [businessStatsLoading, setBusinessStatsLoading] = useState(true)
+  const [businessStatsError, setBusinessStatsError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    setOperationsLoading(true)
+    getAdminOperationsStats()
+      .then(data => {
+        if (!alive) return
+        setOperationsStats(data)
+        setOperationsError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setOperationsStats(null)
+        setOperationsError(err.message || '运营统计加载失败')
+      })
+      .finally(() => {
+        if (alive) setOperationsLoading(false)
+      })
+    getContactExchangeStats()
+      .then(data => {
+        if (alive) setExchangeStats(data)
+      })
+      .catch(() => {
+        if (alive) setExchangeStats(null)
+      })
+    setApplicationStatsLoading(true)
+    getAdminApplicationStats()
+      .then(data => {
+        if (!alive) return
+        setApplicationStats(data)
+        setApplicationStatsError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setApplicationStats(null)
+        setApplicationStatsError(err.message || '平台投递统计加载失败')
+      })
+      .finally(() => {
+        if (alive) setApplicationStatsLoading(false)
+      })
+    setBusinessStatsLoading(true)
+    getAdminBusinessLoopStats()
+      .then(data => {
+        if (!alive) return
+        setBusinessStats(data)
+        setBusinessStatsError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setBusinessStats(null)
+        setBusinessStatsError(err.message || '平台业务闭环统计加载失败')
+      })
+      .finally(() => {
+        if (alive) setBusinessStatsLoading(false)
+      })
+    return () => { alive = false }
+  }, [])
+
   return (
     <>
+      <div className="admin-card">
+        <div className="ac-title">平台运营总览</div>
+        {operationsError ? (
+          <div style={{ color: '#E54545', fontSize: 13 }}>{operationsError}</div>
+        ) : (
+          <div className="admin-kpis" style={{ marginBottom: 0 }}>
+            {[
+              ['今日新增用户', operationsStats?.today_new_user_count ?? 0],
+              ['今日新增岗位', operationsStats?.today_new_job_count ?? 0],
+              ['今日新增投递', operationsStats?.today_new_application_count ?? 0],
+              ['活跃岗位', operationsStats?.active_job_count ?? 0],
+              ['待审核岗位', operationsStats?.pending_job_review_count ?? 0],
+              ['有效对接', exchangeStats?.accepted_count ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} className="admin-kpi">
+                <div className="k-label">{label}</div>
+                <div className="k-value">{operationsLoading ? '...' : value}</div>
+                <div className="k-delta up">real API</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="admin-kpis">
         {s.kpis.map(k => (
           <div key={k.label} className="admin-kpi">
@@ -90,6 +541,50 @@ function Dash() {
             <div className={`k-delta ${k.up ? 'up' : 'down'}`}>{k.up ? '↑ ' : '⚠ '}{k.delta}</div>
           </div>
         ))}
+      </div>
+      <div className="admin-card">
+        <div className="ac-title">真实业务闭环 · 有效对接</div>
+        {businessStatsError ? (
+          <div style={{ color: '#E54545', fontSize: 13 }}>{businessStatsError}</div>
+        ) : (
+          <div className="admin-kpis" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', marginBottom: 0 }}>
+            {[
+              ['成功对接', businessStats?.successful_connection_count ?? exchangeStats?.accepted_count ?? 0],
+              ['待确认交换', businessStats?.pending_exchange_count ?? exchangeStats?.pending_count ?? 0],
+              ['已拒绝交换', businessStats?.declined_exchange_count ?? exchangeStats?.declined_count ?? 0],
+              ['交换请求总数', businessStats?.contact_exchange_count ?? exchangeStats?.total_count ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} className="admin-kpi">
+                <div className="k-label">{label}</div>
+                <div className="k-value">{businessStatsLoading ? '...' : value}</div>
+                <div className="k-delta up">real API</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="admin-card">
+        <div className="ac-title">真实业务闭环 · 平台投递处理</div>
+        {applicationStatsError ? (
+          <div style={{ color: '#E54545', fontSize: 13 }}>{applicationStatsError}</div>
+        ) : (
+          <div className="admin-kpis" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', marginBottom: 0 }}>
+            {[
+              ['投递总数', businessStats?.application_count ?? applicationStats?.total_count ?? 0],
+              ['新投递', businessStats?.submitted_count ?? applicationStats?.submitted_count ?? 0],
+              ['已查看', businessStats?.viewed_count ?? applicationStats?.viewed_count ?? 0],
+              ['已邀面', businessStats?.interview_invited_count ?? applicationStats?.interview_invited_count ?? 0],
+              ['已录用', businessStats?.hired_count ?? applicationStats?.hired_count ?? 0],
+              ['已拒绝', businessStats?.rejected_count ?? applicationStats?.rejected_count ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} className="admin-kpi">
+                <div className="k-label">{label}</div>
+                <div className="k-value">{applicationStatsLoading && businessStatsLoading ? '...' : value}</div>
+                <div className="k-delta up">real API</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="admin-grid2">
         <div className="admin-card">
@@ -255,23 +750,76 @@ function Review() {
 }
 
 function Users() {
+  const [users, setUsers] = useState([])
+  const [role, setRole] = useState('')
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await listUsersForAdmin({ limit: 50, ...(role ? { role } : {}) })
+      setUsers(data.items || [])
+      setTotal(data.total || 0)
+    } catch (err) {
+      setUsers([])
+      setTotal(0)
+      setError(err.message || '用户列表加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [role])
+
+  const roleLabel = {
+    seeker: '求职者',
+    recruiter: '招聘者',
+    admin: '管理员',
+  }
+
   return (
     <div className="admin-card">
-      <div className="ac-title">用户管理</div>
+      <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+        <span>用户管理</span>
+        <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
+          {[
+            ['', '全部'],
+            ['seeker', '求职者'],
+            ['recruiter', '招聘者'],
+            ['admin', '管理员'],
+          ].map(([value, label]) => (
+            <button key={value || 'all'} type="button" className={`a-btn sm ${role === value ? 'primary' : ''}`} onClick={() => setRole(value)}>
+              {label}
+            </button>
+          ))}
+          <button type="button" className="a-btn sm" onClick={loadUsers}>刷新</button>
+        </div>
+      </div>
+      <div className="tiny muted" style={{ marginBottom: 10 }}>真实用户资源，共 {total} 条</div>
+      {error && <div style={{ color: '#E54545', fontSize: 13, marginBottom: 12 }}>{error}</div>}
       <table className="admin-table">
-        <thead><tr><th>名称</th><th>角色</th><th>认证</th><th>状态</th><th>发布岗位</th><th>注册时间</th><th>操作</th></tr></thead>
+        <thead><tr><th>ID</th><th>名称</th><th>手机号</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
         <tbody>
-          {adminUsers.map(u => (
+          {loading ? (
+            <tr><td colSpan="7" style={{ color: 'var(--a-text-2)', padding: 24 }}>加载用户中...</td></tr>
+          ) : users.length > 0 ? users.map(u => (
             <tr key={u.id}>
-              <td>{u.name}</td>
-              <td><span className="a-tag blue">{u.role}</span></td>
-              <td>{u.verified ? <span className="a-tag pass">已认证</span> : <span className="a-tag gray">未认证</span>}</td>
-              <td>{u.status === '风险' ? <span className="a-tag block">风险</span> : <span className="a-tag pass">正常</span>}</td>
-              <td>{u.jobs}</td>
-              <td style={{ color: 'var(--a-text-2)' }}>{u.date}</td>
+              <td>{u.id}</td>
+              <td>{u.display_name || '-'}</td>
+              <td>{u.phone}</td>
+              <td><span className="a-tag blue">{roleLabel[u.role] || u.role}</span></td>
+              <td><span className={`a-tag ${u.status === 'active' ? 'pass' : 'gray'}`}>{u.status === 'active' ? '正常' : u.status}</span></td>
+              <td style={{ color: 'var(--a-text-2)' }}>{u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-'}</td>
               <td><span className="a-btn sm">详情</span></td>
             </tr>
-          ))}
+          )) : (
+            <tr><td colSpan="7" style={{ color: 'var(--a-text-2)', padding: 24 }}>暂无用户</td></tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -827,23 +1375,673 @@ function AIMonitor() {
   )
 }
 
-function BaseData() {
+function PushTaskStatusTag({ status }) {
+  const meta = {
+    pending: ['warn', '待发送'],
+    deferred: ['blue', '延后'],
+    digest_placeholder: ['gray', '摘要占位'],
+    sent: ['pass', '已发送'],
+    failed: ['block', '失败'],
+  }[status] || ['gray', status]
+  return <span className={`a-tag ${meta[0]}`}>{meta[1]}</span>
+}
+
+function PushQueueCard() {
+  const toast = useToast()
+  const [items, setItems] = useState([])
+  const [total, setTotal] = useState(0)
+  const [status, setStatus] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await listAdminNotificationPushTasks({ limit: 20, ...(status ? { status } : {}) })
+      setItems(data.items || [])
+      setTotal(data.total || 0)
+    } catch (err) {
+      setItems([])
+      setTotal(0)
+      setError(err.message || '推送队列加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [status])
+
+  const mark = async (taskId, nextStatus, errorMessage) => {
+    try {
+      await updateAdminNotificationPushTaskStatus(taskId, {
+        status: nextStatus,
+        ...(errorMessage ? { error_message: errorMessage } : {}),
+      })
+      toast(nextStatus === 'sent' ? '已标记为已发送' : '已标记为失败')
+      await load()
+    } catch (err) {
+      toast(err.message || '更新推送任务失败')
+    }
+  }
+
+  const runWorker = async () => {
+    try {
+      setRunning(true)
+      const result = await runAdminNotificationPushWorker({ limit: 50 })
+      toast(`worker 已处理 ${result.processed_count || 0} 条，摘要 ${result.digest_count || 0} 条`)
+      await load()
+    } catch (err) {
+      toast(err.message || '运行推送 worker 失败')
+    } finally {
+      setRunning(false)
+    }
+  }
+
   return (
+    <div className="admin-card" style={{ marginBottom: 20 }}>
+      <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+        <span>推送队列管理</span>
+        <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
+          {[
+            ['', '全部'],
+            ['pending', '待发送'],
+            ['deferred', '延后'],
+            ['digest_placeholder', '摘要占位'],
+            ['sent', '已发送'],
+            ['failed', '失败'],
+          ].map(([value, label]) => (
+            <button key={value || 'all'} type="button" className={`a-btn sm ${status === value ? 'primary' : ''}`} onClick={() => setStatus(value)}>
+              {label}
+            </button>
+          ))}
+          <button type="button" className={`a-btn sm primary ${running ? 'disabled' : ''}`} onClick={runWorker} disabled={running}>
+            {running ? '运行中...' : '运行 worker'}
+          </button>
+          <button type="button" className="a-btn sm" onClick={load}>刷新</button>
+        </div>
+      </div>
+      {error ? (
+        <div style={{ color: '#E54545', fontSize: 13 }}>{error}</div>
+      ) : (
+        <>
+          <div className="tiny muted" style={{ marginBottom: 10 }}>
+            共 {total} 条；当前 worker 会处理到期任务，真实微信发送由后续接入配置启用。
+          </div>
+          <table className="admin-table">
+            <thead><tr><th>ID</th><th>接收人</th><th>状态</th><th>标题</th><th>计划时间</th><th>原因</th><th>操作</th></tr></thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="7" style={{ color: 'var(--a-text-2)' }}>加载中...</td></tr>
+              ) : items.length > 0 ? items.map(item => (
+                <tr key={item.id}>
+                  <td>{item.id}</td>
+                  <td>{item.recipient_id}</td>
+                  <td><PushTaskStatusTag status={item.status} /></td>
+                  <td>
+                    <div>{item.title}</div>
+                    <div className="tiny muted">{item.detail || '-'}</div>
+                    {item.error_message && <div className="tiny" style={{ color: '#E54545' }}>{item.error_message}</div>}
+                  </td>
+                  <td>{item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('zh-CN') : '-'}</td>
+                  <td>{item.reason || '-'}</td>
+                  <td>
+                    {item.status !== 'sent' && <button type="button" className="a-btn sm" onClick={() => mark(item.id, 'sent')}>标记已发送</button>}
+                    {item.status !== 'failed' && <button type="button" className="a-btn sm danger" style={{ marginLeft: 6 }} onClick={() => mark(item.id, 'failed', '管理员手动标记失败')}>标记失败</button>}
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan="7" style={{ color: 'var(--a-text-2)' }}>暂无推送任务</td></tr>
+              )}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  )
+}
+
+function BaseData({ section = 'overview', setPage }) {
+  const toast = useToast()
+  const navigate = useNavigate()
+  const [ruleConfig, setRuleConfig] = useState(null)
+  const [ruleLoading, setRuleLoading] = useState(true)
+  const [positions, setPositions] = useState([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [form, setForm] = useState({
+    name: '',
+    category: '',
+    aliasesText: '',
+    description: '',
+    status: 'active',
+  })
+  const [tags, setTags] = useState([])
+  const [tagTotal, setTagTotal] = useState(0)
+  const [tagLoading, setTagLoading] = useState(true)
+  const [tagError, setTagError] = useState('')
+  const [editingTagId, setEditingTagId] = useState(null)
+  const [tagForm, setTagForm] = useState({
+    name: '',
+    category: '',
+    parentId: '',
+    color: '',
+    description: '',
+    sortOrder: 0,
+    status: 'active',
+  })
+
+  const loadPositions = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await listStandardPositions({ limit: 100 })
+      setPositions(data.items || [])
+      setTotal(data.total || 0)
+    } catch (err) {
+      setPositions([])
+      setTotal(0)
+      setError(err.message || '标准职位库加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadDefaultRule = async () => {
+    try {
+      setRuleLoading(true)
+      const data = await getDefaultMatchRuleConfig()
+      setRuleConfig(data)
+    } catch (err) {
+      console.error('加载默认匹配规则失败:', err)
+    } finally {
+      setRuleLoading(false)
+    }
+  }
+
+  const loadTags = async () => {
+    try {
+      setTagLoading(true)
+      setTagError('')
+      const data = await listTagLibraryItems({ limit: 100 })
+      setTags(data.items || [])
+      setTagTotal(data.total || 0)
+    } catch (err) {
+      setTags([])
+      setTagTotal(0)
+      setTagError(err.message || '标签库加载失败')
+    } finally {
+      setTagLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDefaultRule()
+    loadPositions()
+    loadTags()
+  }, [])
+
+  const resetForm = () => {
+    setEditingId(null)
+    setForm({
+      name: '',
+      category: '',
+      aliasesText: '',
+      description: '',
+      status: 'active',
+    })
+  }
+
+  const editPosition = (position) => {
+    setEditingId(position.id)
+    setForm({
+      name: position.name || '',
+      category: position.category || '',
+      aliasesText: (position.aliases || []).join(', '),
+      description: position.description || '',
+      status: position.status || 'active',
+    })
+  }
+
+  const savePosition = async () => {
+    const payload = {
+      name: form.name.trim(),
+      category: form.category.trim(),
+      aliases: form.aliasesText.split(',').map(item => item.trim()).filter(Boolean),
+      description: form.description.trim() || null,
+      status: form.status,
+    }
+    if (!payload.name || !payload.category) {
+      toast('请填写标准名称和分类')
+      return
+    }
+
+    try {
+      if (editingId) {
+        await updateStandardPosition(editingId, payload)
+        toast('标准职位已更新')
+      } else {
+        await createStandardPosition(payload)
+        toast('标准职位已新增')
+      }
+      resetForm()
+      await loadPositions()
+    } catch (err) {
+      toast(err.message || '保存标准职位失败')
+    }
+  }
+
+  const toggleStatus = async (position) => {
+    const nextStatus = position.status === 'active' ? 'inactive' : 'active'
+    try {
+      await updateStandardPosition(position.id, { status: nextStatus })
+      toast(nextStatus === 'active' ? '标准职位已启用' : '标准职位已停用')
+      await loadPositions()
+    } catch (err) {
+      toast(err.message || '更新状态失败')
+    }
+  }
+
+  const resetTagForm = () => {
+    setEditingTagId(null)
+    setTagForm({
+      name: '',
+      category: '',
+      parentId: '',
+      color: '',
+      description: '',
+      sortOrder: 0,
+      status: 'active',
+    })
+  }
+
+  const editTag = (tag) => {
+    setEditingTagId(tag.id)
+    setTagForm({
+      name: tag.name || '',
+      category: tag.category || '',
+      parentId: tag.parent_id ? String(tag.parent_id) : '',
+      color: tag.color || '',
+      description: tag.description || '',
+      sortOrder: tag.sort_order || 0,
+      status: tag.status || 'active',
+    })
+  }
+
+  const saveTag = async () => {
+    const payload = {
+      name: tagForm.name.trim(),
+      category: tagForm.category.trim(),
+      parent_id: tagForm.parentId ? Number(tagForm.parentId) : null,
+      color: tagForm.color.trim() || null,
+      description: tagForm.description.trim() || null,
+      sort_order: Number(tagForm.sortOrder) || 0,
+      status: tagForm.status,
+    }
+    if (!payload.name || !payload.category) {
+      toast('请填写标签名称和分类')
+      return
+    }
+
+    try {
+      if (editingTagId) {
+        await updateTagLibraryItem(editingTagId, payload)
+        toast('标签已更新')
+      } else {
+        await createTagLibraryItem(payload)
+        toast('标签已新增')
+      }
+      resetTagForm()
+      await loadTags()
+    } catch (err) {
+      toast(err.message || '保存标签失败')
+    }
+  }
+
+  const toggleTagStatus = async (tag) => {
+    const nextStatus = tag.status === 'active' ? 'inactive' : 'active'
+    try {
+      await updateTagLibraryItem(tag.id, { status: nextStatus })
+      toast(nextStatus === 'active' ? '标签已启用' : '标签已停用')
+      await loadTags()
+    } catch (err) {
+      toast(err.message || '更新标签状态失败')
+    }
+  }
+
+  const tagNameById = new Map(tags.map(tag => [tag.id, tag.name]))
+
+  const ruleSection = (
+    <div className="admin-card" style={{ marginBottom: 20 }}>
+      <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+        <span>🎯 人岗匹配规则</span>
+        <span className="a-btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate('/admin-ra/match-rules')}>
+          react-admin 规则管理台（试运行） →
+        </span>
+      </div>
+      {ruleLoading ? (
+        <div style={{ color: 'var(--a-text-2)', padding: 20 }}>加载匹配规则中...</div>
+      ) : ruleConfig ? (
+        <table className="admin-table">
+          <thead><tr><th>规则名称</th><th>应用范围</th><th>状态</th><th>版本</th><th>维度数</th><th>更新时间</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>{ruleConfig.name}</td>
+              <td>{ruleConfig.scope}</td>
+              <td><span className={`a-tag ${ruleConfig.status === 'active' ? 'green' : 'gray'}`}>{ruleConfig.status === 'active' ? '生效中' : ruleConfig.status}</span></td>
+              <td>V{ruleConfig.version}</td>
+              <td>{ruleConfig.dimensions?.length || 0} 个</td>
+              <td>{ruleConfig.updated_at ? new Date(ruleConfig.updated_at).toLocaleString('zh-CN') : '-'}</td>
+              <td><span className="a-btn sm" onClick={() => navigate(`/admin/match-rules/${ruleConfig.id}`)}>查看详情</span></td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        <div style={{ color: 'var(--a-text-2)', padding: 20 }}>暂无匹配规则配置</div>
+      )}
+    </div>
+  )
+
+  const positionsSection = (
     <div className="admin-card">
-      <div className="ac-title row" style={{ justifyContent: 'space-between' }}><span>🗂 标准职位库</span><span className="a-btn sm primary" style={{ marginLeft: 'auto' }}>＋ 新增职位</span></div>
+      <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+        <span>🗂 标准职位库</span>
+        <span style={{ color: 'var(--a-text-2)', fontSize: 13 }}>共 {total} 条</span>
+      </div>
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        <input
+          value={form.name}
+          onChange={e => setForm({ ...form, name: e.target.value })}
+          placeholder="标准名称"
+          style={{ minWidth: 160, flex: '1 1 160px' }}
+        />
+        <input
+          value={form.category}
+          onChange={e => setForm({ ...form, category: e.target.value })}
+          placeholder="分类"
+          style={{ minWidth: 140, flex: '1 1 140px' }}
+        />
+        <input
+          value={form.aliasesText}
+          onChange={e => setForm({ ...form, aliasesText: e.target.value })}
+          placeholder="别名，用逗号分隔"
+          style={{ minWidth: 240, flex: '2 1 240px' }}
+        />
+        <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+          <option value="active">启用</option>
+          <option value="inactive">停用</option>
+        </select>
+        <span className="a-btn sm primary" onClick={savePosition}>{editingId ? '保存' : '新增职位'}</span>
+        {editingId && <span className="a-btn sm" onClick={resetForm}>取消</span>}
+      </div>
+      <textarea
+        value={form.description}
+        onChange={e => setForm({ ...form, description: e.target.value })}
+        placeholder="说明（可选）"
+        rows={2}
+        style={{ width: '100%', marginBottom: 12, resize: 'vertical' }}
+      />
+      {error && <div style={{ color: '#dc2626', marginBottom: 12 }}>{error}</div>}
       <table className="admin-table">
         <thead><tr><th>标准名称</th><th>分类</th><th>别名（AI 标准化映射）</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
-          {adminJobLib.map(j => (
-            <tr key={j.id}>
-              <td>{j.name}</td><td>{j.category}</td>
-              <td style={{ color: 'var(--a-text-2)' }}>{j.alias}</td>
-              <td><span className="a-tag pass">{j.status}</span></td>
-              <td><span className="a-btn sm">编辑</span> <span className="a-btn sm">停用</span></td>
+          {loading ? (
+            <tr><td colSpan="5" style={{ color: 'var(--a-text-2)' }}>加载标准职位库中...</td></tr>
+          ) : positions.length > 0 ? positions.map(position => (
+            <tr key={position.id}>
+              <td>{position.name}</td>
+              <td>{position.category}</td>
+              <td style={{ color: 'var(--a-text-2)' }}>{(position.aliases || []).join('、') || '-'}</td>
+              <td><span className={`a-tag ${position.status === 'active' ? 'pass' : 'gray'}`}>{position.status === 'active' ? '启用' : '停用'}</span></td>
+              <td>
+                <span className="a-btn sm" onClick={() => navigate(`/admin/standard-positions/${position.id}`)}>查看详情</span>{' '}
+                <span className="a-btn sm" onClick={() => editPosition(position)}>编辑</span>{' '}
+                <span className="a-btn sm" onClick={() => toggleStatus(position)}>{position.status === 'active' ? '停用' : '启用'}</span>
+              </td>
             </tr>
-          ))}
+          )) : (
+            <tr><td colSpan="5" style={{ color: 'var(--a-text-2)' }}>暂无标准职位，请新增第一条。</td></tr>
+          )}
         </tbody>
       </table>
+    </div>
+  )
+
+  const tagsSection = (
+    <div className="admin-card" style={{ marginTop: section === 'overview' ? 20 : 0 }}>
+      <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+        <span>🏷 标签库</span>
+        <span style={{ color: 'var(--a-text-2)', fontSize: 13 }}>共 {tagTotal} 条</span>
+      </div>
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        <input
+          value={tagForm.name}
+          onChange={e => setTagForm({ ...tagForm, name: e.target.value })}
+          placeholder="标签名称"
+          style={{ minWidth: 140, flex: '1 1 140px' }}
+        />
+        <input
+          value={tagForm.category}
+          onChange={e => setTagForm({ ...tagForm, category: e.target.value })}
+          placeholder="分类，如 skill / industry"
+          style={{ minWidth: 180, flex: '1 1 180px' }}
+        />
+        <select
+          value={tagForm.parentId}
+          onChange={e => setTagForm({ ...tagForm, parentId: e.target.value })}
+          style={{ minWidth: 160 }}
+        >
+          <option value="">无父级</option>
+          {tags.filter(tag => tag.id !== editingTagId).map(tag => (
+            <option key={tag.id} value={tag.id}>{tag.category} / {tag.name}</option>
+          ))}
+        </select>
+        <input
+          value={tagForm.color}
+          onChange={e => setTagForm({ ...tagForm, color: e.target.value })}
+          placeholder="#2563eb"
+          style={{ width: 110 }}
+        />
+        <input
+          type="number"
+          min="0"
+          value={tagForm.sortOrder}
+          onChange={e => setTagForm({ ...tagForm, sortOrder: e.target.value })}
+          placeholder="排序"
+          style={{ width: 90 }}
+        />
+        <select value={tagForm.status} onChange={e => setTagForm({ ...tagForm, status: e.target.value })}>
+          <option value="active">启用</option>
+          <option value="inactive">停用</option>
+        </select>
+        <span className="a-btn sm primary" onClick={saveTag}>{editingTagId ? '保存' : '新增标签'}</span>
+        {editingTagId && <span className="a-btn sm" onClick={resetTagForm}>取消</span>}
+      </div>
+      <textarea
+        value={tagForm.description}
+        onChange={e => setTagForm({ ...tagForm, description: e.target.value })}
+        placeholder="说明（可选）"
+        rows={2}
+        style={{ width: '100%', marginBottom: 12, resize: 'vertical' }}
+      />
+      {tagError && <div style={{ color: '#dc2626', marginBottom: 12 }}>{tagError}</div>}
+      <table className="admin-table">
+        <thead><tr><th>标签</th><th>分类</th><th>父级</th><th>颜色</th><th>排序</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+          {tagLoading ? (
+            <tr><td colSpan="7" style={{ color: 'var(--a-text-2)' }}>加载标签库中...</td></tr>
+          ) : tags.length > 0 ? tags.map(tag => (
+            <tr key={tag.id}>
+              <td>{tag.name}</td>
+              <td>{tag.category}</td>
+              <td>{tag.parent_id ? tagNameById.get(tag.parent_id) || tag.parent_id : '-'}</td>
+              <td>
+                {tag.color ? (
+                  <span className="row" style={{ gap: 6 }}>
+                    <span style={{ width: 14, height: 14, borderRadius: 4, background: tag.color, display: 'inline-block' }} />
+                    {tag.color}
+                  </span>
+                ) : '-'}
+              </td>
+              <td>{tag.sort_order}</td>
+              <td><span className={`a-tag ${tag.status === 'active' ? 'pass' : 'gray'}`}>{tag.status === 'active' ? '启用' : '停用'}</span></td>
+              <td>
+                <span className="a-btn sm" onClick={() => navigate(`/admin/tags/${tag.id}`)}>查看详情</span>{' '}
+                <span className="a-btn sm" onClick={() => editTag(tag)}>编辑</span>{' '}
+                <span className="a-btn sm" onClick={() => toggleTagStatus(tag)}>{tag.status === 'active' ? '停用' : '启用'}</span>
+              </td>
+            </tr>
+          )) : (
+            <tr><td colSpan="7" style={{ color: 'var(--a-text-2)' }}>暂无标签，请新增第一条。</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  if (section === 'positions') return positionsSection
+  if (section === 'tags') return tagsSection
+  if (section === 'rules') return ruleSection
+
+  return (
+    <>
+      <div className="admin-kpis">
+        {[
+          ['标准职位', loading ? '...' : total, '职位名称标准化与别名映射', 'data-positions'],
+          ['标签库', tagLoading ? '...' : tagTotal, '技能、行业、福利等标签层级维护', '/admin/tags'],
+          ['匹配规则', ruleLoading ? '...' : (ruleConfig ? `V${ruleConfig.version}` : '-'), '人岗匹配权重与维度配置', 'data-rules'],
+          ['操作日志', '审计', '基础数据增删改状态变更留痕', 'data-logs'],
+          ['推送队列', '独立管理', '微信真实通知接入前的任务队列', 'data-push'],
+        ].map(([label, value, desc, target]) => (
+          <div
+            key={label}
+            className="admin-kpi"
+            onClick={() => String(target).startsWith('/') ? navigate(target) : setPage?.(target)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="k-label">{label}</div>
+            <div className="k-value">{value}</div>
+            <div className="k-delta up">{desc}</div>
+          </div>
+        ))}
+      </div>
+      {ruleSection}
+    </>
+  )
+}
+
+function BaseDataOperationLogs() {
+  const [items, setItems] = useState([])
+  const [total, setTotal] = useState(0)
+  const [resourceType, setResourceType] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadLogs = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await listBaseDataOperationLogs({
+        limit: 50,
+        ...(resourceType ? { resource_type: resourceType } : {}),
+      })
+      setItems(data.items || [])
+      setTotal(data.total || 0)
+    } catch (err) {
+      setItems([])
+      setTotal(0)
+      setError(err.message || '操作日志加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadLogs()
+  }, [resourceType])
+
+  const resourceLabel = (value) => ({
+    standard_position: '标准职位',
+    tag: '标签',
+  }[value] || value || '-')
+
+  const actionLabel = (value) => ({
+    create: '新增',
+    update: '更新',
+    deactivate: '停用',
+  }[value] || value || '-')
+
+  const summarizeSnapshot = (snapshot) => {
+    if (!snapshot) return '-'
+    const keys = ['name', 'category', 'status', 'sort_order', 'parent_id']
+    const parts = keys
+      .filter(key => snapshot[key] !== undefined && snapshot[key] !== null && snapshot[key] !== '')
+      .map(key => `${key}: ${Array.isArray(snapshot[key]) ? snapshot[key].join(', ') : snapshot[key]}`)
+    return parts.length > 0 ? parts.join('；') : JSON.stringify(snapshot)
+  }
+
+  return (
+    <div className="admin-card">
+      <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
+        <span>🧾 基础数据操作日志</span>
+        <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
+          {[
+            ['', '全部'],
+            ['standard_position', '标准职位'],
+            ['tag', '标签'],
+          ].map(([value, label]) => (
+            <button key={value || 'all'} type="button" className={`a-btn sm ${resourceType === value ? 'primary' : ''}`} onClick={() => setResourceType(value)}>
+              {label}
+            </button>
+          ))}
+          <button type="button" className="a-btn sm" onClick={loadLogs}>刷新</button>
+        </div>
+      </div>
+      <div className="tiny muted" style={{ marginBottom: 10 }}>
+        共 {total} 条；记录标准职位和标签的新增、更新、停用操作。
+      </div>
+      {error ? (
+        <div style={{ color: '#E54545', fontSize: 13 }}>{error}</div>
+      ) : (
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>资源</th>
+              <th>动作</th>
+              <th>操作人</th>
+              <th>变更前</th>
+              <th>变更后</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan="7" style={{ color: 'var(--a-text-2)' }}>加载操作日志中...</td></tr>
+            ) : items.length > 0 ? items.map(item => (
+              <tr key={item.id}>
+                <td>{item.id}</td>
+                <td>
+                  <div>{resourceLabel(item.resource_type)}</div>
+                  <div className="tiny muted">#{item.resource_id}</div>
+                </td>
+                <td><span className="a-tag blue">{actionLabel(item.action)}</span></td>
+                <td>{item.actor_id || '-'}</td>
+                <td className="tiny muted">{summarizeSnapshot(item.before)}</td>
+                <td className="tiny muted">{summarizeSnapshot(item.after)}</td>
+                <td>{item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : '-'}</td>
+              </tr>
+            )) : (
+              <tr><td colSpan="7" style={{ color: 'var(--a-text-2)' }}>暂无操作日志。</td></tr>
+            )}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }

@@ -11,6 +11,7 @@ def import_all_models() -> None:
 
     from app.modules.ai_prompt.models import AiPromptConfig  # noqa: F401
     from app.modules.application.models import JobApplication, JobApplicationTimeline  # noqa: F401
+    from app.modules.base_data.models import BaseDataOperationLog, StandardPosition, TagLibraryItem  # noqa: F401
     from app.modules.company_certification.models import CompanyCertification  # noqa: F401
     from app.modules.job.models import Job  # noqa: F401
     from app.modules.resume.models import ResumeChunk, ResumeExtractedText, ResumeParseRun, ResumeUpload, SeekerResume  # noqa: F401

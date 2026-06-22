@@ -62,7 +62,7 @@ async def health_check():
 
 
 # 注册路由
-from app.api.v1 import ai_prompts, applications, auth, company_certifications, jobs, resumes, seeker_profiles, users
+from app.api.v1 import ai_prompts, applications, auth, base_data, company_certifications, jobs, resumes, seeker_profiles, users
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["认证"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["用户"])
@@ -72,6 +72,7 @@ app.include_router(applications.router, prefix="/api/v1/applications", tags=["ap
 app.include_router(resumes.router, prefix="/api/v1/resumes", tags=["resumes"])
 app.include_router(seeker_profiles.router, prefix="/api/v1/seeker-profiles", tags=["seeker-profiles"])
 app.include_router(ai_prompts.router, prefix="/api/v1/ai-prompts", tags=["ai-prompts"])
+app.include_router(base_data.router, prefix="/api/v1/base-data", tags=["base-data"])
 
 # TODO: 其他模块路由
 uploads_dir = Path("uploads")

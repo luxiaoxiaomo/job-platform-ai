@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { Suspense } from 'react'
 import { Routes, Route, Navigate, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { ToastProvider, Phone } from './components/ui.jsx'
 import { RecruiterApp, RecruiterJobDetail, RecruiterRegister } from './recruiter/RecruiterPages.jsx'
@@ -17,17 +17,21 @@ import SeekerNotifications from './seeker/SeekerNotifications.jsx'
 import { SeekerResumeUpload, SeekerPortrait } from './seeker/SeekerPortrait.jsx'
 import { SeekerParseHistory } from './seeker/SeekerParseHistory.jsx'
 import { SeekerParseDetail } from './seeker/SeekerParseDetail.jsx'
+import { SeekerParseConfirm } from './seeker/SeekerParseConfirm.jsx'
 import { AdminReviewList, AdminReviewDetail } from './admin/AdminReview.jsx'
 import {
   AdminCompanyCertificationList,
   AdminCompanyCertificationDesktopDetail,
 } from './admin/AdminCompanyCertification.jsx'
+import { AdminMatchRuleDetail, AdminMatchRuleEdit } from './admin/AdminMatchRules.jsx'
 import { Chatbot } from './common/Chatbot.jsx'
 import { Login } from './common/Login.jsx'
 import { Register } from './common/Register.jsx'
 import { UserProfile } from './common/UserProfile.jsx'
 import { ProfileProvider } from './common/ProfileContext.jsx'
-import { AdminApp } from './admin/AdminApp.jsx'
+import { AdminApp, AdminStandardPositionDetail, AdminTagLibraryList, AdminTagLibraryItemDetail } from './admin/AdminApp.jsx'
+import { RealRecruiterChat, RealSeekerChat } from './common/RealMessagePages.jsx'
+const AdminRaApp = React.lazy(() => import('./admin-ra/app/AdminRaApp.jsx'))
 
 /* 顶部演示控制条：在招聘者端 / 应聘者端之间切换 */
 function DemoBar() {
@@ -123,7 +127,7 @@ export default function App() {
         <Route path="/recruiter/job/create" element={<Stage label="招聘者 · 发布岗位"><RecruiterJobCreate /></Stage>} />
         <Route path="/recruiter/job/upload" element={<Stage label="招聘者 · 批量导入"><RecruiterJobUpload /></Stage>} />
         <Route path="/recruiter/job/review" element={<Stage label="招聘者 · 发布审核"><RecruiterJobReview /></Stage>} />
-        <Route path="/recruiter/chat/:id" element={<Stage label="招聘者 · 对话"><RecruiterChat /></Stage>} />
+        <Route path="/recruiter/chat/:id" element={<Stage label="招聘者 · 对话"><RealRecruiterChat /></Stage>} />
         <Route path="/recruiter/candidate" element={<Stage label="招聘者 · 候选人分析"><RecruiterCandidate /></Stage>} />
         <Route path="/recruiter/stats" element={<Stage label="招聘者 · 数据统计"><RecruiterStats /></Stage>} />
         <Route path="/recruiter/company-portrait" element={<Stage label="招聘者 · 企业画像"><RecruiterCompanyPortrait /></Stage>} />
@@ -152,10 +156,11 @@ export default function App() {
           <Route path="/seeker/portrait" element={<Stage label="应聘者 · 简历画像"><SeekerPortrait /></Stage>} />
           <Route path="/seeker/parse-history" element={<Stage label="应聘者 · 解析历史"><SeekerParseHistory /></Stage>} />
           <Route path="/seeker/parse-history/:uploadId" element={<Stage label="应聘者 · 解析详情"><SeekerParseDetail /></Stage>} />
+          <Route path="/seeker/parse-confirm/:parseRunId" element={<Stage label="应聘者 · 确认解析结果"><SeekerParseConfirm /></Stage>} />
           <Route path="/seeker/company-portrait" element={<Stage label="应聘者 · 企业画像"><SeekerCompanyView /></Stage>} />
           <Route path="/seeker/profile/edit" element={<Stage label="应聘者 · 完善信息"><SeekerProfileEdit /></Stage>} />
           <Route path="/seeker/notifications" element={<Stage label="应聘者 · 通知中心"><SeekerNotifications /></Stage>} />
-          <Route path="/seeker/chat/:id" element={<Stage label="应聘者 · 对话"><SeekerChat /></Stage>} />
+          <Route path="/seeker/chat/:id" element={<Stage label="应聘者 · 对话"><RealSeekerChat /></Stage>} />
         </Route>
 
         {/* 通用 */}
@@ -166,7 +171,20 @@ export default function App() {
 
         {/* 管理后台（桌面全屏，不装手机壳） */}
         <Route path="/admin" element={<AdminApp />} />
+        <Route path="/admin/standard-positions/:id" element={<AdminStandardPositionDetail />} />
+        <Route path="/admin/tags" element={<AdminTagLibraryList />} />
+        <Route path="/admin/tags/:id" element={<AdminTagLibraryItemDetail />} />
         <Route path="/admin/review/:id" element={<AdminReviewDetail />} />
+        <Route path="/admin/match-rules/:id" element={<AdminMatchRuleDetail />} />
+        <Route path="/admin/match-rules/:id/edit" element={<AdminMatchRuleEdit />} />
+        <Route
+          path="/admin-ra/*"
+          element={
+            <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#999' }}>加载规则管理台...</div>}>
+              <AdminRaApp />
+            </Suspense>
+          }
+        />
 
         {/* 管理后台 - 企业认证审核（真实API） */}
         <Route path="/admin/company-certifications" element={<Stage label="管理员 · 企业认证审核"><AdminCompanyCertificationList /></Stage>} />
