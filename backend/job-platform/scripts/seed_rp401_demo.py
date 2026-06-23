@@ -1,4 +1,4 @@
-"""Seed deterministic R-P4-01 Match Quality P1 demo data.
+﻿"""Seed deterministic R-P4-01 Match Quality P1 demo data.
 
 This script is local-only. It creates a repeatable data set that makes the
 Match Quality page show usable samples, high-risk anomalies, tuning
@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
@@ -21,6 +22,20 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = ROOT.parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+EARLY_BLOCKED_ENVIRONMENTS = {"production", "prod"}
+
+
+def _assert_not_explicit_production_environment() -> None:
+    environment = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "local-demo").strip().lower()
+    if environment in EARLY_BLOCKED_ENVIRONMENTS:
+        raise RuntimeError(
+            "RP401 demo seed is LOCAL_DEMO_ONLY and uses NOT_PRODUCTION_CREDENTIALS; "
+            "it must not run when APP_ENV/ENVIRONMENT is production."
+        )
+
+
+_assert_not_explicit_production_environment()
 
 from app.core.security import hash_password  # noqa: E402
 from app.db.session import AsyncSessionLocal  # noqa: E402
@@ -44,6 +59,23 @@ CATEGORY = "RP401-Tech"
 CITY_RISK = "RP401-Shanghai"
 CITY_HEALTHY = "RP401-Beijing"
 OUT = PROJECT_ROOT / "frontend" / "wechat-prototype" / "output" / "playwright" / "rp401-demo-seed.json"
+RP401_DEMO_BOUNDARY = {
+    "scope": "MATCH_QUALITY_ONLY",
+    "credential_scope": "LOCAL_DEMO_ONLY",
+    "credential_warning": "NOT_PRODUCTION_CREDENTIALS",
+    "launch_evidence": "NOT_FULL_BUSINESS_LOOP_EVIDENCE",
+}
+BLOCKED_ENVIRONMENTS = {"production", "prod"}
+
+
+def assert_demo_environment() -> None:
+    """Reject explicit production environments without reading secret files."""
+    environment = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "local-demo").strip().lower()
+    if environment in BLOCKED_ENVIRONMENTS:
+        raise RuntimeError(
+            "RP401 demo seed is LOCAL_DEMO_ONLY and uses NOT_PRODUCTION_CREDENTIALS; "
+            "it must not run when APP_ENV/ENVIRONMENT is production."
+        )
 
 
 async def get_or_create_user(session, *, phone: str, role: str, display_name: str, password: str) -> User:
@@ -125,6 +157,7 @@ def job_payload(recruiter_id: int, position_id: int, *, city: str, title: str, t
 
 
 async def seed() -> dict:
+    assert_demo_environment()
     async with AsyncSessionLocal() as session:
         await cleanup_previous_demo(session)
         admin = await get_or_create_user(
@@ -239,6 +272,7 @@ async def seed() -> dict:
 
         result = {
             "seeded_at": datetime.now(timezone.utc).isoformat(),
+            "demo_boundary": RP401_DEMO_BOUNDARY,
             "admin": {"phone": ADMIN_PHONE, "password": ADMIN_PASSWORD},
             "recruiter": {"phone": RECRUITER_PHONE, "password": RECRUITER_PASSWORD},
             "seeker_password": SEEKER_PASSWORD,

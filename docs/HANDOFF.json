@@ -1,175 +1,157 @@
 {
-  "schema_version": 1,
-  "last_updated_by": "codex",
-  "last_updated_at": "2026-06-22T17:32:00+08:00",
-  "current_focus": "R-P4-01 Match Quality P1 implementation done; next step is product review or a new P4 intelligent matching planning track.",
-  "protocol_doc": "docs/collaboration/AI协作机制_自动推进协议.md",
-  "kanban_doc": "docs/resume-foundation/简历解析底座_协作看板.md",
-  "tasks": [
-    {
-      "id": "R-P3-01",
-      "owner": "codex",
-      "role": "backend",
-      "status": "done",
-      "ready_for_next": true
-    },
-    {
-      "id": "R-P3-02",
-      "owner": "both",
-      "role": "integration",
-      "status": "done",
-      "ready_for_next": true
-    },
-    {
-      "id": "R-P3-03",
-      "owner": "both",
-      "role": "integration",
-      "status": "done",
-      "ready_for_next": true
-    },
-    {
-      "id": "R-P3-04A",
-      "owner": "codex",
-      "role": "backend",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Rule config tables, read APIs, migration, and backend restart completed."
-    },
-    {
-      "id": "R-P3-04B",
-      "owner": "claude",
-      "role": "frontend",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Read-only rule details, base-data entry, routes, and styles completed."
-    },
-    {
-      "id": "R-P3-04-integration",
-      "owner": "both",
-      "role": "integration",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Integration acceptance passed."
-    },
-    {
-      "id": "R-P3-05",
-      "owner": "both",
-      "role": "feature",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Rule editing and version generation completed: interface contract, backend version creation, frontend edit page, history page, and browser integration acceptance.",
-      "contract_doc": "docs/p3-match/R-P3-05_规则编辑与版本生成接口契约.md"
-    },
-    {
-      "id": "R-P3-06",
-      "owner": "codex",
-      "role": "feature",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Rule version management enhancement completed: multi-rule templates, version comparison, rollback-by-new-version, gray/AB test entries, migration, API contract, frontend pages, and browser integration acceptance.",
-      "contract_doc": "docs/p3-match/R-P3-06_规则版本管理增强接口契约.md",
-      "verification": [
-        ".\\.venv\\Scripts\\pytest.exe tests\\test_api\\test_matches.py -q => 16 passed",
-        "npm.cmd run build => passed",
-        "alembic upgrade head => applied a6b8c0d2e306_add_match_rule_templates_experiments.py",
-        "browser flow => output/playwright/rp306-list.png, rp306-history.png, rp306-compare.png, rp306-rollback.png, rp306-experiment.png"
-      ]
-    },
-    {
-      "id": "R-P3-07",
-      "owner": "codex",
-      "role": "feature",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Rule experiments now affect runtime matching through scope/template selection, stable AB bucket routing, persisted match audits, experiment effect aggregation, and a react-admin effect/audit panel. Browser acceptance completed.",
-      "contract_doc": "docs/p3-match/R-P3-07_规则实验真实生效与匹配审计接口契约.md",
-      "verification": [
-        ".\\.venv\\Scripts\\pytest.exe -q tests\\test_api\\test_matches.py => 19 passed",
-        "npm.cmd run build => passed",
-        "alembic upgrade head => applied b7c9d1e3f407_add_match_rule_match_audits.py",
-        "browser flow => output/playwright/rp307-experiment-list.png, output/playwright/rp307-effects-audits.png"
-      ]
-    },
-    {
-      "id": "R-P3-09",
-      "owner": "codex",
-      "role": "feature",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Rule release governance completed: release-check API, publish API with old-active archiving and running-experiment blocker, experiment status lifecycle API, operation audit table/list API, react-admin release page, experiment lifecycle actions, migration, and browser acceptance.",
-      "contract_doc": "docs/p3-match/R-P3-09_规则发布治理_PRD.md",
-      "verification": [
-        ".\\.venv\\Scripts\\pytest.exe -q tests\\test_api\\test_matches.py => 22 passed",
-        "$env:TMP='D:\\tmp'; $env:TEMP='D:\\tmp'; .\\.venv\\Scripts\\pytest.exe -q => 154 passed",
-        "npm.cmd run build => passed (Vite chunk size warning only)",
-        ".\\.venv\\Scripts\\python.exe -m alembic upgrade head => applied c8d0e2f4g608_add_match_rule_operation_audits.py",
-        "browser flow => output/playwright/rp309-release-check.png, output/playwright/rp309-published-rule.png, output/playwright/rp309-experiment-actions.png"
-      ]
-    },
-    {
-      "id": "R-P3-08",
-      "owner": "codex",
-      "role": "feature",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Match audit back-office enhancement completed: audit list filters by job/seeker/rule/experiment/bucket/time range, single audit detail API, job/seeker/rule/experiment summaries, full dimension snapshots, react-admin Match Audits page, and browser acceptance.",
-      "contract_doc": "docs/p3-match/R-P3-08_匹配审计后台增强_PRD.md",
-      "verification": [
-        ".\\.venv\\Scripts\\pytest.exe -q tests\\test_api\\test_matches.py => 23 passed",
-        "$env:TMP='D:\\tmp'; $env:TEMP='D:\\tmp'; .\\.venv\\Scripts\\pytest.exe -q => 155 passed",
-        "npm.cmd run build => passed (Vite chunk size warning only)",
-        "browser flow => output/playwright/rp308-audit-list.png, output/playwright/rp308-audit-detail.png"
-      ]
-    },
-    {
-      "id": "R-P3-10",
-      "owner": "codex",
-      "role": "feature",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Match quality operations dashboard completed: admin quality summary API, audit/visit/favorite/application aggregation, rule version and experiment bucket and daily rollups, react-admin Match Quality page, browser acceptance screenshots.",
-      "contract_doc": "docs/p3-match/R-P3-10_匹配质量运营看板_PRD.md",
-      "verification": [
-        ".\\.venv\\Scripts\\pytest.exe -q tests\\test_api\\test_matches.py => 25 passed",
-        "$env:TMP='D:\\tmp'; $env:TEMP='D:\\tmp'; .\\.venv\\Scripts\\pytest.exe -q => 157 passed",
-        "npm.cmd run build => passed (Vite chunk size warning only)",
-        "node frontend/wechat-prototype/output/playwright/manual-rp310-flow.cjs => ok",
-        "browser flow => output/playwright/rp310-quality-dashboard.png, output/playwright/rp310-quality-filtered.png"
-      ]
-    },
-    {
-      "id": "P3-productization-wrap-up",
-      "owner": "codex",
-      "role": "product",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "P3 completion state, delivered capabilities, unfinished requirements, P3/P4 boundary, manual acceptance path, and next-stage backlog documented.",
-      "contract_doc": "docs/p3-match/P3_人岗匹配与规则配置产品化收尾.md",
-      "verification": [
-        "Read runtime truth sources: docs/HANDOFF.json and docs/p3-match task docs.",
-        "Mapped R-P3-01 through R-P3-10 completion evidence to current endpoints, admin pages, tests, scripts, and screenshots.",
-        "Updated P3 wrap-up doc and added a pointer in the historical P3 collaboration plan."
-      ]
-    },
-    {
-      "id": "R-P4-01",
-      "owner": "codex",
-      "role": "feature",
-      "status": "done",
-      "ready_for_next": true,
-      "summary": "Match Quality P1 implemented: quality summary now returns low-score rate, sample status, segment rollups, experiment confidence, anomaly hints, and tuning suggestion drafts; react-admin Match Quality page shows enhanced filters, Segments, Experiment Confidence, Anomalies, and Tuning Suggestions. P4 intelligent matching remains deferred.",
-      "contract_doc": "docs/p3-match/R-P4-01_Match_Quality_P1_分层质量分析与调优建议_PRD.md",
-      "verification": [
-        ".\\.venv\\Scripts\\pytest.exe -q tests\\test_api\\test_matches.py => 27 passed",
-        "npm.cmd run build => passed (Vite chunk size warning only)",
-        "node frontend/wechat-prototype/output/playwright/manual-rp401-match-quality-p1-flow.cjs => ok",
-        "browser flow => output/playwright/rp401-quality-segments.png, output/playwright/rp401-quality-anomalies-suggestions.png"
-      ]
-    }
-  ],
-  "signals": {
-    "pending_for_codex": [],
-    "pending_for_claude": [],
-    "notes": "P3 R-P3-01 through R-P3-10, productization wrap-up, and R-P4-01 Match Quality P1 implementation are complete. P4 intelligent matching remains a separate future planning track."
-  }
+    "schema_version":  1,
+    "last_updated_by":  "codex",
+    "last_updated_at":  "2026-06-23T17:02:00+08:00",
+    "current_focus":  "goal-002 P2 gap repair is complete: live 12-step E2E, structured contact exchange reread, RP401 demo boundary, demo credential governance, and runtime evidence are recorded; remaining P4 intelligent matching implementation remains a future product/engineering track.",
+    "protocol_doc":  "docs/collaboration/AI协作机制_自动推进协议.md",
+    "memory_handoff_doc":  "docs/collaboration/项目记忆与交接机制.md",
+    "kanban_doc":  "docs/resume-foundation/简历解析底座_协作看板.md",
+    "tasks":  [
+                  {
+                      "id":  "P3-baseline",
+                      "owner":  "both",
+                      "role":  "baseline",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "P3 R-P3-01 through R-P3-10, productization wrap-up, rule config/version/experiment/release/audit/quality dashboard, and collaboration baseline are complete.",
+                      "docs":  [
+                                   "docs/p3-match/P3_人岗匹配与规则配置产品化收尾.md",
+                                   "docs/p3-match/P3_人岗匹配与规则配置协作计划.md"
+                               ],
+                      "verification":  [
+                                           "Historical HANDOFF entries recorded backend tests, frontend build, migrations, and browser acceptance for P3 milestones.",
+                                           "P3 is treated as completed baseline for future P4 planning."
+                                       ]
+                  },
+                  {
+                      "id":  "R-P4-01",
+                      "owner":  "codex",
+                      "role":  "feature",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "Match Quality P1 is implemented: quality summary returns segment rollups, anomaly hints, tuning suggestion drafts, and experiment confidence; react-admin Match Quality page displays enhanced filters and outputs.",
+                      "contract_doc":  "docs/p3-match/R-P4-01_Match_Quality_P1_分层质量分析与调优建议_PRD.md",
+                      "verification":  [
+                                           ".\\.venv\\Scripts\\pytest.exe -q tests\\test_api\\test_matches.py =\u003e 27 passed",
+                                           "npm.cmd run build =\u003e passed with existing chunk-size warning only",
+                                           "node frontend/wechat-prototype/output/playwright/manual-rp401-match-quality-p1-flow.cjs =\u003e ok",
+                                           "browser flow =\u003e output/playwright/rp401-quality-segments.png, output/playwright/rp401-quality-anomalies-suggestions.png"
+                                       ]
+                  },
+                  {
+                      "id":  "goal-001",
+                      "owner":  "codex",
+                      "role":  "planning-audit-handoff",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "G1-G7 completion package is done: P4 intelligent matching PRD, interface/algorithm boundary, task package, core-loop dry-run acceptance, Match Quality tuning workflow, pre-release technical audit, base-data/tag governance, demo/sample-data plan, and project memory/handoff workflow.",
+                      "goal_dir":  "goal-001",
+                      "deliverables":  [
+                                           "docs/p4-intelligent-matching/P4_智能匹配_MVP_PRD.md",
+                                           "docs/p4-intelligent-matching/P4_智能匹配_接口契约与算法边界.md",
+                                           "docs/p4-intelligent-matching/P4_智能匹配_任务包.md",
+                                           "docs/acceptance/核心业务闭环验收_空岗发布平台.md",
+                                           "docs/p4-intelligent-matching/匹配质量调优闭环_运营流程.md",
+                                           "docs/audit/上线前技术体检_空岗发布平台.md",
+                                           "docs/operations/基础数据与标签治理流程.md",
+                                           "docs/demo/演示环境与样例数据方案.md",
+                                           "docs/collaboration/项目记忆与交接机制.md"
+                                       ],
+                      "verification":  [
+                                           "Selected backend API tests passed: matches 27, jobs 20, applications 11, messages 13, base_data 12.",
+                                           "Frontend build passed with existing Vite chunk-size warning only.",
+                                           "Alembic current and heads both reported c8d0e2f4g608 (head).",
+                                           "T003-T011 document reviews and placeholder scans passed.",
+                                           "AhaDiff MCP is available but has no local runs/cards/concepts; ahadiff CLI is not on PowerShell PATH."
+                                       ],
+                      "known_residual_risks":  [
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Live 12-step browser E2E has not been executed as a single script; T006 is a dry-run acceptance record and T010 defines the demo plan."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "RP401 seed covers deterministic Match Quality outputs but not full company/resume/contact-exchange flow."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Demo credentials must remain local/demo-only and must not be reused for production."
+                                                   },
+                                                   {
+                                                       "severity":  "P3",
+                                                       "item":  "Frontend build still reports Vite chunk-size warnings."
+                                                   }
+                                               ]
+                  },
+                  {
+                      "id":  "goal-002",
+                      "owner":  "codex",
+                      "role":  "p2-gap-repair-validation",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "P2 residual gaps from goal-001 were repaired and validated: live 12-step E2E script and manifest, structured contact exchange reread/visibility, RP401 Match Quality-only boundary, local/demo credential governance, focused backend tests, RP401 acceptance, and live E2E runtime artifacts.",
+                      "goal_dir":  "goal-002",
+                      "deliverables":  [
+                                           "frontend/wechat-prototype/output/playwright/manual-live-12-step-e2e.cjs",
+                                           "frontend/wechat-prototype/output/playwright/verify-live-12-step-script.cjs",
+                                           "frontend/wechat-prototype/output/playwright/verify-rp401-demo-governance.cjs",
+                                           "backend/job-platform/scripts/seed_rp401_demo.py",
+                                           "frontend/wechat-prototype/output/playwright/manual-rp401-demo-acceptance.cjs",
+                                           "frontend/wechat-prototype/output/playwright/rp401-demo-seed.json",
+                                           "frontend/wechat-prototype/output/playwright/manual-live-12-step-e2e-manifest-live-12-step-2026-06-23T09-01-39-803Z.json",
+                                           "frontend/wechat-prototype/output/playwright/manual-live-12-step-match-quality-live-12-step-2026-06-23T09-01-39-803Z.png",
+                                           "frontend/wechat-prototype/output/playwright/rp401-demo-quality-insights.png",
+                                           "frontend/wechat-prototype/output/playwright/rp401-demo-risk-city-filter.png"
+                                       ],
+                      "verification":  [
+                                           "node frontend/wechat-prototype/output/playwright/verify-live-12-step-script.cjs =\u003e {\"ok\":true,\"script\":\"manual-live-12-step-e2e.cjs\",\"recorded_steps\":12}",
+                                           "node frontend/wechat-prototype/output/playwright/verify-rp401-demo-governance.cjs =\u003e {\"ok\":true,\"seed_manifest_checked\":true}",
+                                           ".\\.venv\\Scripts\\pytest.exe tests\\test_api\\test_business_loop.py tests\\test_api\\test_messages.py -q =\u003e 14 passed, 1 pytest cache warning",
+                                           ".\\.venv\\Scripts\\python.exe -m alembic current / heads =\u003e c8d0e2f4g608 (head)",
+                                           ".\\.venv\\Scripts\\python.exe scripts\\seed_rp401_demo.py =\u003e seeded RP401 demo with demo_boundary MATCH_QUALITY_ONLY / LOCAL_DEMO_ONLY",
+                                           "node frontend/wechat-prototype/output/playwright/manual-rp401-demo-acceptance.cjs =\u003e ok, screenshots rp401-demo-quality-insights.png and rp401-demo-risk-city-filter.png",
+                                           "node frontend/wechat-prototype/output/playwright/manual-live-12-step-e2e.cjs =\u003e ok, 12 real API-backed steps, manifest and Match Quality screenshot generated"
+                                       ],
+                      "known_residual_risks":  [
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Runtime evidence was collected against local/demo services and generated demo records; it is not production evidence."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "RP401 seed remains Match Quality-only by design and is explicitly marked NOT_FULL_BUSINESS_LOOP_EVIDENCE."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Demo credentials remain fixed local/demo credentials and must not be reused for production."
+                                                   },
+                                                   {
+                                                       "severity":  "P3",
+                                                       "item":  "Frontend build still has the historical Vite chunk-size warning; not re-run in goal-002 because app source was not changed."
+                                                   }
+                                               ]
+                  },
+                  {
+                      "id":  "P4-intelligent-matching-implementation",
+                      "owner":  "both",
+                      "role":  "future-feature",
+                      "status":  "todo",
+                      "ready_for_next":  false,
+                      "summary":  "Future implementation should start from the P4 PRD, interface contract, and task package created by goal-001. It is not active until product/engineering explicitly starts the implementation track.",
+                      "docs":  [
+                                   "docs/p4-intelligent-matching/P4_智能匹配_MVP_PRD.md",
+                                   "docs/p4-intelligent-matching/P4_智能匹配_接口契约与算法边界.md",
+                                   "docs/p4-intelligent-matching/P4_智能匹配_任务包.md"
+                               ]
+                  }
+              ],
+    "signals":  {
+                    "pending_for_codex":  [
+
+                                          ],
+                    "pending_for_claude":  [
+
+                                           ],
+                    "notes":  "No active handoff task is pending. goal-002 P2 gap repair is complete with local/demo runtime evidence; next optional work is product review or explicitly starting the P4 intelligent matching implementation track."
+                }
 }

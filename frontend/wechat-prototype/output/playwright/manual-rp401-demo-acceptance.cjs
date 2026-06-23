@@ -1,4 +1,4 @@
-const fs = require('fs')
+﻿const fs = require('fs')
 const path = require('path')
 
 let chromium
@@ -12,6 +12,11 @@ const API = process.env.API_BASE_URL || 'http://127.0.0.1:8004'
 const APP = process.env.APP_BASE_URL || 'http://127.0.0.1:5174'
 const OUT = 'D:/AIposition/frontend/wechat-prototype/output/playwright'
 const SEED_PATH = path.join(OUT, 'rp401-demo-seed.json')
+const RP401_DEMO_BOUNDARY = {
+  scope: 'MATCH_QUALITY_ONLY',
+  credential_scope: 'LOCAL_DEMO_ONLY',
+  launch_evidence: 'NOT_FULL_BUSINESS_LOOP_EVIDENCE',
+}
 
 function readSeed() {
   if (!fs.existsSync(SEED_PATH)) {
@@ -57,6 +62,17 @@ function requireCondition(condition, message, details) {
 
 async function main() {
   const seed = readSeed()
+  requireCondition(
+    seed.demo_boundary?.scope === RP401_DEMO_BOUNDARY.scope &&
+      seed.demo_boundary?.credential_scope === RP401_DEMO_BOUNDARY.credential_scope &&
+      seed.demo_boundary?.launch_evidence === RP401_DEMO_BOUNDARY.launch_evidence,
+    'RP401 seed must declare demo_boundary and not_full_business_loop_evidence',
+    seed.demo_boundary,
+  )
+  const demo_boundary = {
+    ...seed.demo_boundary,
+    not_full_business_loop_evidence: seed.demo_boundary.launch_evidence,
+  }
   const admin = await adminToken(seed)
   const query = new URLSearchParams({
     experiment_id: String(seed.experiment_id),
@@ -135,6 +151,7 @@ async function main() {
   await browser.close()
   console.log(JSON.stringify({
     ok: true,
+    demo_boundary,
     api: {
       summary: quality.summary,
       experiment_confidence: quality.experiment_confidence,

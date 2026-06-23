@@ -1,5 +1,11 @@
 {
-  "seeded_at": "2026-06-22T09:50:46.151047+00:00",
+  "seeded_at": "2026-06-23T08:59:38.856960+00:00",
+  "demo_boundary": {
+    "scope": "MATCH_QUALITY_ONLY",
+    "credential_scope": "LOCAL_DEMO_ONLY",
+    "credential_warning": "NOT_PRODUCTION_CREDENTIALS",
+    "launch_evidence": "NOT_FULL_BUSINESS_LOOP_EVIDENCE"
+  },
   "admin": {
     "phone": "13700137001",
     "password": "Admin1234"
@@ -10,13 +16,13 @@
   },
   "seeker_password": "Test1234",
   "rule_config_id": 24,
-  "experiment_id": 7,
+  "experiment_id": 8,
   "position_category": "RP401-Tech",
   "standard_position_id": 2,
   "risk_city": "RP401-Shanghai",
   "healthy_city": "RP401-Beijing",
-  "risk_job_id": 20,
-  "healthy_job_id": 21,
+  "risk_job_id": 22,
+  "healthy_job_id": 23,
   "match_count": 240,
   "expected": {
     "risk_city_application_rate": 0,
