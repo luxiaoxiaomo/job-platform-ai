@@ -1,7 +1,7 @@
 """
 Job application repository.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -11,6 +11,10 @@ from sqlalchemy.orm import selectinload
 from app.modules.application.models import JobApplication, JobApplicationTimeline
 from app.modules.job.models import Job
 from app.modules.message.models import ContactExchange, Conversation
+
+
+def _utc_day_start() -> datetime:
+    return datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
 
 
 class ApplicationRepository:
@@ -385,12 +389,10 @@ class ApplicationRepository:
 
     @staticmethod
     async def admin_operations_stats(db: AsyncSession) -> dict[str, int]:
-        from datetime import datetime
-
         from app.modules.company_certification.models import CompanyCertification
         from app.modules.user.models import User
 
-        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = _utc_day_start()
 
         today_new_user_count = int(
             (await db.execute(select(func.count()).select_from(User).where(User.created_at >= today_start))).scalar_one() or 0

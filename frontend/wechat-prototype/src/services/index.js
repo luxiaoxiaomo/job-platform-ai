@@ -3,7 +3,7 @@
  * 根据环境变量切换Mock/Real模式
  */
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // 认证服务
 import * as realAuthService from './auth.js'

@@ -1,127 +1,109 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { NavBar, AIBadge, AICard, useToast } from '../components/ui.jsx'
+import { NavBar, AICard } from '../components/ui.jsx'
 import { RecruiterBottomNav } from './RecruiterBottomNav.jsx'
-import { RadarChart, LineChart, ScoreBar } from '../components/charts.jsx'
-import { candidateMatch, candidateCompare, candidateList, statTrend, aggregateStats, myJobs, pickColor } from '../mock/data.js'
-import { ShareSheet } from '../seeker/SeekerExtra.jsx'
-import { getContactExchangeStats, getRecruiterApplicationStats, getRecruiterBusinessLoopStats, getRecruiterDeepDiveStats, listMyJobs } from '../services/index.js'
-import { pickPublicTagNames, usePublicTagOptions } from '../common/usePublicTagOptions.js'
+import { LineChart } from '../components/charts.jsx'
+import { statTrend, aggregateStats } from '../mock/data.js'
+import { getContactExchangeStats, getRecruiterApplicationStats, getRecruiterBusinessLoopStats, getRecruiterDeepDiveStats, listMyJobs, listRecruiterApplications } from '../services/index.js'
+import { applicationStatusTag, applicationStatusText, formatDateTime } from '../utils/applicationView.js'
 
-/* ============ 候选人分析（列表 + 单人选匹配 + 对比） ============ */
+/* ============ 候选人分析（真实投递） ============ */
 export function RecruiterCandidate() {
   const navigate = useNavigate()
-  const toast = useToast()
-  const [tab, setTab] = useState('list') // list | match | compare
-  const [selectedId, setSelectedId] = useState(null)
-  const [showShare, setShowShare] = useState(false)
-  const c = candidateMatch
-  const { tagOptions, tagOptionsLoading } = usePublicTagOptions()
-  const candidateTagNames = (candidate, count = 3) => pickPublicTagNames(tagOptions, candidate?.id || 0, count)
+  const [applications, setApplications] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    listRecruiterApplications({ limit: 100 })
+      .then(data => {
+        if (!alive) return
+        setApplications(data.items || [])
+        setError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setApplications([])
+        setError(err.message || '候选人列表加载失败')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => { alive = false }
+  }, [])
+
+  const total = applications.length
+  const submitted = applications.filter(item => item.status === 'submitted').length
+  const active = applications.filter(item => ['viewed', 'interview_invited'].includes(item.status)).length
+  const hired = applications.filter(item => item.status === 'hired').length
 
   return (
     <>
-      <NavBar title="候选人分析" right={<span onClick={() => setShowShare(true)}>推荐</span>} />
-      {showShare && <ShareSheet title="推荐该候选人给其他招聘者" onClose={() => setShowShare(false)} />}
+      <NavBar title="候选人分析" />
       <div className="page" style={{ paddingBottom: 80 }}>
-
-        {/* tab 切换 */}
-        <div className="row" style={{ background: '#fff', borderBottom: '0.5px solid var(--wx-line)' }}>
-          {[{ k: 'list', l: '候选人列表 (' + candidateList.length + ')' }, { k: 'match', l: 'AI 匹配度' }, { k: 'compare', l: '对比' }].map(tb => (
-            <div key={tb.k} className="grow center" onClick={() => setTab(tb.k)}
-              style={{ padding: '12px 0', fontSize: 14, fontWeight: tab === tb.k ? 600 : 400, color: tab === tb.k ? 'var(--wx-green)' : 'var(--wx-text-gray)', borderBottom: tab === tb.k ? '2px solid var(--wx-green)' : '2px solid transparent', cursor: 'pointer' }}>
-              {tb.l}
+        <div className="row" style={{ background: '#fff', padding: '16px', gap: 0 }}>
+          {[
+            ['总候选', loading ? '...' : total],
+            ['新投递', loading ? '...' : submitted],
+            ['沟通中', loading ? '...' : active],
+            ['已录用', loading ? '...' : hired],
+          ].map(([label, value]) => (
+            <div key={label} className="grow center">
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
+              <div className="tiny muted" style={{ marginTop: 2 }}>{label}</div>
             </div>
           ))}
         </div>
 
-        {/* 列表视图 */}
-        {tab === 'list' && candidateList.map(cl => (
-          <div key={cl.id} className="job-card" style={{ cursor: 'pointer' }}
-            onClick={() => navigate('/recruiter/talent/' + cl.id)}>
-            <div className="row" style={{ gap: 10 }}>
-              <span className="avatar" style={{ width: 42, height: 42, borderRadius: 8, background: pickColor(cl.logoIdx), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 }}>{cl.name[0]}</span>
-              <div className="grow" style={{ overflow: 'hidden' }}>
-                <div className="row between">
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{cl.name}{cl.virtual && <span className="tag tag-gray" style={{ marginLeft: 4, fontSize: 10 }}>虚拟</span>}</span>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--wx-green)', cursor: 'pointer', borderBottom: '1px dashed var(--wx-green)' }}
-                    onClick={(e) => { e.stopPropagation(); setSelectedId(cl.id); setTab('match') }}
-                    title="点击查看匹配度怎么算的">{cl.matchScore}<span style={{ fontSize: 10, fontWeight: 400 }}>%</span></span>
+        <div className="cell-group-title">真实投递候选人</div>
+        {loading && <div className="ai-tip" style={{ margin: 16 }}>正在读取真实投递...</div>}
+        {error && <div className="ai-tip" style={{ margin: 16, color: 'var(--wx-red)' }}>{error}</div>}
+        <div className="cell-group">
+          {!loading && !error && applications.length === 0 && (
+            <div className="cell"><span className="grow tiny muted">暂无真实候选人投递</span></div>
+          )}
+          {!loading && !error && applications.map(application => (
+            <div
+              key={application.id}
+              className="cell link"
+              onClick={() => navigate('/recruiter/applications/' + application.id, { state: { application } })}
+              style={{ alignItems: 'flex-start' }}
+            >
+              <span className="avatar" style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--wx-green-bg)', color: 'var(--wx-green-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, marginRight: 10, flexShrink: 0 }}>
+                {(application.seeker_display_name || '候')[0]}
+              </span>
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="row between" style={{ gap: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {application.seeker_display_name || `候选人 #${application.seeker_id}`}
+                  </span>
+                  <span className={`tag ${applicationStatusTag[application.status] || 'tag-gray'}`} style={{ fontSize: 11, flexShrink: 0 }}>
+                    {applicationStatusText[application.status] || application.status}
+                  </span>
                 </div>
-                <div className="row gap6" style={{ marginTop: 4, flexWrap: 'wrap' }}>
-                  {candidateTagNames(cl).length > 0
-                    ? candidateTagNames(cl).map(tg => <span key={tg} className="tag tag-green" style={{ fontSize: 10, padding: '1px 6px' }}>{tg}</span>)
-                    : <span className="tiny muted">{tagOptionsLoading ? '标签加载中...' : '暂无标签库标签'}</span>}
+                <div className="tiny muted" style={{ marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {application.job_title || `岗位 #${application.job_id}`} {application.job_city ? `· ${application.job_city}` : ''}
                 </div>
-                <div className="row between tiny muted" style={{ marginTop: 4 }}>
-                  <span>应聘：{cl.job}</span>
-                  <span>{cl.lastMsgTime} · 💬</span>
-                </div>
+                <div className="tiny muted" style={{ marginTop: 4 }}>投递时间：{formatDateTime(application.created_at)}</div>
+                {application.resume_snapshot && (
+                  <div className="tiny" style={{ marginTop: 6, lineHeight: 1.6, color: 'var(--wx-text-2)' }}>{application.resume_snapshot}</div>
+                )}
               </div>
+              <span className="cell-arrow">›</span>
             </div>
-            <div style={{ background: 'var(--wx-surface-2)', borderRadius: 4, height: 4, marginTop: 8, overflow: 'hidden' }}>
-              <div style={{ width: cl.matchScore + '%', height: '100%', background: 'var(--wx-green)', borderRadius: 4 }} />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
 
-        {/* 单人选匹配 */}
-        {tab === 'match' && (<>
-          <div className="row" style={{ background: '#fff', padding: '16px', gap: 12 }}>
-            <span className="avatar" style={{ width: 50, height: 50, borderRadius: 8, background: pickColor(0), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 600 }}>{c.name[0]}</span>
-            <div className="grow">
-              <div style={{ fontWeight: 600, fontSize: 16 }}>{c.name}</div>
-              <div className="tiny muted" style={{ marginTop: 2 }}>应聘「{c.job}」</div>
-              <div className="row gap6" style={{ marginTop: 6 }}>
-                {candidateTagNames(c, 4).length > 0
-                  ? candidateTagNames(c, 4).map(h => <span key={h} className="tag tag-green">{h}</span>)
-                  : <span className="tiny muted">{tagOptionsLoading ? '标签加载中...' : '暂无标签库标签'}</span>}
-              </div>
-            </div>
-          </div>
-          <div className="center" style={{ background: '#fff', padding: '16px 0 4px' }}>
-            <div className="tiny muted">AI 综合匹配度</div>
-            <div style={{ fontSize: 40, fontWeight: 800, color: 'var(--wx-green)' }}>{c.score}<span style={{ fontSize: 16 }}>分</span></div>
-            <RadarChart data={c.dims} size={240} />
-          </div>
-          <AICard title="AI 简历亮点摘要" tip="AI 分析结果，仅供参考">
-            该候选人具备 5 年 React 开发经验，曾任前端技术负责人，与岗位核心要求匹配度 {c.score}%，互动积极、响应及时，建议优先沟通。
-          </AICard>
-          <div className="cell-group-title">分项得分</div>
-          <div className="cell-group"><div style={{ padding: '14px 16px 4px' }}>
-            {c.dims.map(d => <ScoreBar key={d.key} label={d.key} score={d.score} color={d.score >= 85 ? '#07C160' : '#FA9D3B'} />)}
-          </div></div>
-        </>)}
-
-        {/* 候选人对比 */}
-        {tab === 'compare' && (<>
-          <div className="ai-tip padx" style={{ paddingTop: 12 }}>⚡ AI 多维度横向对比，匹配最高者标注「AI 推荐」</div>
-          <div className="cell-group">
-            {candidateCompare.map(p => (
-              <div key={p.name} style={{ padding: '14px 16px', borderBottom: '0.5px solid var(--wx-line-light)' }}>
-                <div className="row between" style={{ marginBottom: 8 }}>
-                  <span style={{ fontWeight: 600 }}>{p.name}{p.best && <span className="tag tag-green" style={{ marginLeft: 6 }}>⚡AI推荐</span>}</span>
-                  <span className="tiny muted">综合 {Math.round((p.skill + p.exp + p.salary + p.complete + p.active) / 5)}</span>
-                </div>
-                <ScoreBar label="技能匹配" score={p.skill} />
-                <ScoreBar label="经验相关" score={p.exp} />
-                <ScoreBar label="薪资匹配" score={p.salary} color="#FA9D3B" />
-                <ScoreBar label="互动积极" score={p.active} />
-              </div>
-            ))}
-          </div>
-        </>)}
-
-        <div className="btn-block-wrap row gap12">
-          <button className="btn btn-default" onClick={() => setShowShare(true)}>转发推荐</button>
-          <button className="btn btn-primary" onClick={() => navigate('/recruiter/chat/1')}>💬 发起沟通</button>
+        <div className="btn-block-wrap">
+          <button className="btn btn-primary" onClick={() => navigate('/recruiter/talent')}>进入完整人才池</button>
         </div>
       </div>
       <RecruiterBottomNav />
     </>
   )
 }
-
 /* ============ 数据统计详页（趋势 + AI 洞察 + 穿透） ============ */
 export function RecruiterStats() {
   const navigate = useNavigate()

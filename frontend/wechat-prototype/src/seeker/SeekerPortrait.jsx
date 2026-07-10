@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { NavBar, HomeNavLink, AIBadge, AICard, useToast } from '../components/ui.jsx'
+import { RadarChart } from '../components/charts.jsx'
 import { uploadResume, getStructuredResult, getProfileSummary } from '../services/index.js'
 import { useProfile } from '../common/ProfileContext.jsx'
 import { usePublicTagOptions } from '../common/usePublicTagOptions.js'
@@ -171,6 +172,45 @@ function normalizeStructuredBasic(basic) {
   }
 }
 
+function buildResumeRadarData({ basicInfo, summaries = {}, completeness = {} }) {
+  const skills = summaries.skills || []
+  const educations = summaries.educations || []
+  const workExperiences = summaries.work_experiences || []
+  const projects = summaries.projects || []
+  const certificates = summaries.certificates || []
+
+  return [
+    { key: '\u5b8c\u6574\u5ea6', score: clampScore(completeness.score || 0) },
+    { key: '\u6280\u80fd', score: clampScore(skills.length * 18) },
+    { key: '\u7ecf\u9a8c', score: experienceRadarScore(basicInfo?.work_years, workExperiences.length) },
+    { key: '\u5b66\u5386', score: educationRadarScore(basicInfo?.highest_education, educations.length) },
+    { key: '\u9879\u76ee', score: clampScore(projects.length * 35) },
+    { key: '\u8bc1\u4e66', score: clampScore(certificates.length * 45) },
+  ].filter(item => item.score > 0)
+}
+
+function experienceRadarScore(workYears, workCount) {
+  const yearScore = workYears === null || workYears === undefined ? 0 : Math.min(Number(workYears) * 16, 100)
+  const workScore = Math.min(workCount * 28, 100)
+  return clampScore(Math.max(yearScore, workScore))
+}
+
+function educationRadarScore(education, educationCount) {
+  const text = String(education || '')
+  if (text.includes('\u535a\u58eb')) return 100
+  if (text.includes('\u7855\u58eb') || text.includes('\u7814\u7a76\u751f')) return 92
+  if (text.includes('\u672c\u79d1')) return 82
+  if (text.includes('\u5927\u4e13') || text.includes('\u4e13\u79d1')) return 68
+  if (text.includes('\u4e2d\u4e13') || text.includes('\u9ad8\u4e2d')) return 52
+  return educationCount > 0 ? 60 : 0
+}
+
+function clampScore(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  return Math.max(0, Math.min(100, Math.round(numeric)))
+}
+
 export function SeekerPortrait() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -215,6 +255,7 @@ export function SeekerPortrait() {
   const name = basic_info?.real_name || '未识别'
   const target = basic_info?.target_position || '求职中'
   const profileTagRefs = profile?.tag_refs || []
+  const radarData = buildResumeRadarData({ basicInfo: basic_info, summaries, completeness })
 
   return (
     <>
@@ -224,6 +265,27 @@ export function SeekerPortrait() {
           <div className="ph-name">{name} 的简历画像</div>
           <span className="ph-level">⚡ 目标岗位：{target}</span>
         </div>
+
+        {radarData.length > 0 && (
+          <>
+            <div className="cell-group-title">画像维度</div>
+            <div className="cell-group">
+              <div className="center" style={{ padding: "12px 0 8px" }}>
+                <RadarChart data={radarData} size={236} color="#07C160" />
+              </div>
+              <div style={{ padding: "0 16px 14px" }}>
+                <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+                  {radarData.map(item => (
+                    <span key={item.key} className="tag tag-gray" style={{ fontSize: 12 }}>
+                      {item.key} {item.score}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
 
         {/* 简历文件信息 */}
         <div className="cell-group">

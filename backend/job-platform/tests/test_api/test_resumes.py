@@ -24,6 +24,43 @@ def _build_docx_bytes(text: str) -> bytes:
     return buffer.getvalue()
 
 
+def _pdf_escape(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _build_pdf_bytes(text: str) -> bytes:
+    text_parts = []
+    for index, line in enumerate(text.splitlines() or [""]):
+        if index:
+            text_parts.append("T*")
+        text_parts.append(f"({_pdf_escape(line)}) Tj")
+    stream = f"BT /F1 12 Tf 14 TL 72 720 Td {' '.join(text_parts)} ET".encode("latin-1")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+    ]
+    output = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{index} 0 obj\n".encode("ascii"))
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+    xref_offset = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode("ascii")
+    )
+    return bytes(output)
+
+
 async def _register_seeker(client: AsyncClient, user_data: dict) -> str:
     code_response = await client.post(
         "/api/v1/auth/send-verification-code",
@@ -193,6 +230,101 @@ class TestResumes:
         )
 
         assert forbidden_response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_failed_upload_does_not_replace_current_successful_parse_run(self, client: AsyncClient, test_user_data):
+        token = await _register_seeker(client, test_user_data)
+        docx_content = _build_docx_bytes("姓名：孙明明\n年龄：28\n性别：男\n目标岗位：PeopleSoft 技术顾问")
+
+        success_response = await client.post(
+            "/api/v1/resumes/me/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files={
+                "file": (
+                    "孙明明简历.docx",
+                    docx_content,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+        )
+        assert success_response.status_code == 200
+        success_data = success_response.json()
+        current_parse_run_id = success_data["parse_run"]["id"]
+
+        failed_response = await client.post(
+            "/api/v1/resumes/me/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files={"file": ("broken.png", b"not-an-image", "image/png")},
+        )
+
+        assert failed_response.status_code == 200
+        failed_data = failed_response.json()
+        assert failed_data["upload"]["status"] == "failed"
+        assert failed_data["parse_run"]["status"] == "completed_with_errors"
+        assert failed_data["resume"]["current_parse_run_id"] == current_parse_run_id
+
+        summary_response = await client.get(
+            "/api/v1/resumes/me/profile-summary",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert summary_response.status_code == 200
+        summary = summary_response.json()
+        assert summary["source_links"]["parse_run_id"] == current_parse_run_id
+        assert summary["basic_info"]["real_name"] == "孙明明"
+
+    @pytest.mark.asyncio
+    async def test_upload_pdf_extracts_text_and_creates_parse_run(self, client: AsyncClient, test_user_data):
+        token = await _register_seeker(client, test_user_data)
+        content = _build_pdf_bytes(
+            "\n".join(
+                [
+                    "Name: Han Yuxia",
+                    "Gender: Female",
+                    "Age: 27",
+                    "Highest Education: Bachelor",
+                    "Work Experience: 5 years",
+                    "Target Position: PeopleSoft Consultant",
+                    "Skills: PeopleSoft SQL",
+                ]
+            )
+        )
+
+        response = await client.post(
+            "/api/v1/resumes/me/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files={"file": ("han-yuxia-resume.pdf", content, "application/pdf")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["upload"]["status"] == "parsed"
+        assert data["parse_run"]["status"] == "succeeded"
+        assert data["parse_run"]["extractor"] == "pdf_text"
+
+        detail_response = await client.get(
+            f"/api/v1/resumes/me/parse-runs/{data['parse_run']['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert detail_response.status_code == 200
+        detail_data = detail_response.json()
+        assert "Han Yuxia" in detail_data["extracted_text"]["text_preview"]
+        assert detail_data["extracted_text"]["char_count"] > 0
+        assert len(detail_data["chunks"]) >= 1
+        assert "PeopleSoft" in detail_data["chunks"][0]["content_preview"]
+
+        auto_structured_response = await client.get(
+            f"/api/v1/resumes/me/parse-runs/{data['parse_run']['id']}/structured",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert auto_structured_response.status_code == 200
+        auto_structured = auto_structured_response.json()
+        assert auto_structured["basic_info"]["real_name"] == "Han Yuxia"
+        assert auto_structured["basic_info"]["age"] == 27
+        assert auto_structured["basic_info"]["gender"] == "女"
+        assert auto_structured["basic_info"]["highest_education"] == "本科"
+        assert auto_structured["basic_info"]["work_years"] == 5
+        assert auto_structured["basic_info"]["target_position"] == "PeopleSoft Consultant"
 
     @pytest.mark.asyncio
     async def test_structured_profile_can_project_to_detail_tables(self, client: AsyncClient, test_user_data):

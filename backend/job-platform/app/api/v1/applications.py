@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, status as http_status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_role
 from app.db.session import get_db
 from app.modules.application.schemas import (
     AdminOperationsStatsResponse,

@@ -3,9 +3,20 @@ Job application API tests.
 """
 from httpx import AsyncClient
 
+from app.modules.application.repository import _utc_day_start
 from tests.test_api.test_company_certifications import register_and_get_token
 from tests.test_api.test_jobs import approve_current_recruiter_certification, job_payload
 from tests.test_api.test_matches import create_confirmed_resume_profile
+
+
+def test_operations_day_start_uses_utc_naive_timestamp():
+    day_start = _utc_day_start()
+
+    assert day_start.tzinfo is None
+    assert day_start.hour == 0
+    assert day_start.minute == 0
+    assert day_start.second == 0
+    assert day_start.microsecond == 0
 
 
 async def create_active_job(

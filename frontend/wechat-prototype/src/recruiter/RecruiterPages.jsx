@@ -13,7 +13,7 @@ import {
   TabBar,
   useToast,
 } from '../components/ui.jsx'
-import { followUpReminders, myJobs, pickColor, talentPool } from '../mock/data.js'
+import { pickColor } from '../mock/data.js'
 import {
   getCurrentUser,
   getMyCompanyCertification,
@@ -117,7 +117,7 @@ function JobList({ onCreate }) {
   const navigate = useNavigate()
   const toast = useToast()
   const [certification, setCertification] = useState(null)
-  const [jobs, setJobs] = useState(myJobs)
+  const [jobs, setJobs] = useState([])
   const [jobsError, setJobsError] = useState('')
   const [jobsLoading, setJobsLoading] = useState(true)
   const [sortBy, setSortBy] = useState('time')
@@ -130,6 +130,7 @@ function JobList({ onCreate }) {
       .then(setCertification)
       .catch(() => setCertification({ status: 'not_submitted' }))
   }, [])
+
 
   const loadJobs = () => {
     setJobsLoading(true)
@@ -251,23 +252,12 @@ function JobList({ onCreate }) {
         </div>
 
         <div className="cell-group-title row between" style={{ paddingRight: 16 }}>
-          <span>待跟进候选人（{followUpReminders.length}）</span>
+          <span>待跟进候选人</span>
         </div>
         <div className="cell-group">
-          {followUpReminders.map(item => (
-            <div key={item.id} className="cell link" onClick={() => navigate('/recruiter/talent/' + item.id)}>
-              <span className="avatar" style={{ width: 34, height: 34, borderRadius: 6, background: pickColor(item.logoIdx), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, marginRight: 10, flexShrink: 0 }}>{item.name[0]}</span>
-              <div className="grow" style={{ overflow: 'hidden' }}>
-                <div className="row gap6">
-                  <span style={{ fontWeight: 500, fontSize: 14 }}>{item.name}</span>
-                  {item.level === 'urgent' && <span className="tag tag-red" style={{ fontSize: 10 }}>紧急</span>}
-                  <span className="tag tag-green" style={{ fontSize: 10 }}>{item.matchScore}%</span>
-                </div>
-                <div className="tiny muted" style={{ marginTop: 2 }}>{item.reason}</div>
-              </div>
-              <span className="cell-arrow">›</span>
-            </div>
-          ))}
+          <div className="cell">
+            <span className="grow tiny muted">暂无真实待跟进候选人</span>
+          </div>
         </div>
 
         {sorted.map(job => (
@@ -587,35 +577,6 @@ export function RecruiterJobDetail() {
   )
 }
 
-function MsgList({ onOpen }) {
-  return (
-    <>
-      <NavBar title="消息" back={false} />
-      <div className="page has-tabbar" style={{ background: '#fff' }}>
-        {recruiterChats.map(chat => (
-          <div key={chat.id} className="cell link" onClick={() => onOpen(chat.id)} style={{ alignItems: 'flex-start', padding: '12px 16px' }}>
-            <span className="msg-avatar avatar" style={{ width: 46, height: 46, borderRadius: 6, background: pickColor(chat.logoIdx), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 600, marginRight: 12, flexShrink: 0 }}>
-              {chat.name[0]}
-            </span>
-            <div className="grow" style={{ overflow: 'hidden' }}>
-              <div className="row between">
-                <span style={{ fontWeight: 500 }}>{chat.name}{chat.virtual && <span className="tag tag-gray" style={{ marginLeft: 6 }}>虚拟名</span>}</span>
-                <span className="tiny muted">{chat.time}</span>
-              </div>
-              <div className="row" style={{ marginTop: 3, gap: 6 }}>
-                <EmotionTag level={chat.emotion} />
-                <span className="tiny muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.preview}</span>
-              </div>
-              <div className="tiny" style={{ color: 'var(--wx-text-light)', marginTop: 3 }}>应聘：{chat.job}</div>
-            </div>
-            {chat.unread > 0 && <span className="tab-badge" style={{ position: 'static', marginLeft: 8 }}>{chat.unread}</span>}
-          </div>
-        ))}
-      </div>
-    </>
-  )
-}
-
 function RealMsgList({ onOpen }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -673,12 +634,41 @@ function Profile() {
   const companyName = currentUser?.display_name || '企业账号'
   const companyInitial = companyName.trim().charAt(0) || '企'
   const [certification, setCertification] = useState(null)
+  const [profileStats, setProfileStats] = useState({
+    jobs: '读取中',
+    talent: '读取中',
+    interviews: '待接入',
+    analysis: '待接入',
+    notifications: '待接入',
+  })
   const certMeta = getCertMeta(certification?.status)
 
   useEffect(() => {
     getMyCompanyCertification()
       .then(setCertification)
       .catch(() => setCertification({ status: 'not_submitted' }))
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    Promise.allSettled([
+      listMyJobs({ limit: 100 }),
+      listRecruiterApplications({ limit: 100 }),
+    ]).then(([jobsResult, applicationsResult]) => {
+      if (!alive) return
+      const jobItems = jobsResult.status === 'fulfilled' ? (jobsResult.value.items || []) : []
+      const applicationItems = applicationsResult.status === 'fulfilled' ? (applicationsResult.value.items || []) : []
+      const online = jobItems.filter(item => ['active', 'online'].includes(item.status)).length
+      const pending = jobItems.filter(item => item.status === 'pending').length
+      setProfileStats({
+        jobs: `${online} 在线 · ${pending} 审核中`,
+        talent: `${applicationItems.length} 人`,
+        interviews: '待接入',
+        analysis: applicationItems.length ? `${applicationItems.length} 人` : '暂无',
+        notifications: '待接入',
+      })
+    })
+    return () => { alive = false }
   }, [])
 
   return (
@@ -700,16 +690,16 @@ function Profile() {
         </div>
 
         <CellGroup>
-          <Cell icon="📋" iconBg="#ECF9F1" label="我的岗位" value="3 在线 · 2 审核中" link onClick={() => navigate('/recruiter/jobs?tab=jobs')} />
-          <Cell icon="👥" iconBg="#E8F5FF" label="人才池" value="21 人" link onClick={() => navigate('/recruiter/talent')} />
-          <Cell icon="📅" iconBg="#FFF3E6" label="面试管理" value="2 待面试" link onClick={() => navigate('/recruiter/interviews')} />
-          <Cell icon="📊" iconBg="#FFF3E6" label="候选人分析" value="8 人" link onClick={() => navigate('/recruiter/candidate')} />
+          <Cell icon="📋" iconBg="#ECF9F1" label="我的岗位" value={profileStats.jobs} link onClick={() => navigate('/recruiter/jobs?tab=jobs')} />
+          <Cell icon="👥" iconBg="#E8F5FF" label="人才池" value={profileStats.talent} link onClick={() => navigate('/recruiter/talent')} />
+          <Cell icon="📅" iconBg="#FFF3E6" label="面试管理" value={profileStats.interviews} link onClick={() => navigate('/recruiter/interviews')} />
+          <Cell icon="📊" iconBg="#FFF3E6" label="候选人分析" value={profileStats.analysis} link onClick={() => navigate('/recruiter/candidate')} />
           <Cell icon="🏢" iconBg="#E8F5FF" label="企业画像" value="AI 生成" link onClick={() => navigate('/recruiter/company-portrait')} />
           <Cell icon="📈" iconBg="#E8F5FF" label="数据统计" link onClick={() => navigate('/recruiter/stats')} />
           <Cell icon="✓" iconBg="#FFF3E6" label="企业认证" value={certMeta.text} link onClick={() => navigate('/recruiter/register')} />
         </CellGroup>
         <CellGroup>
-          <Cell icon="🔔" iconBg="#FFE6E6" label="通知中心" value="2 条未读" link onClick={() => navigate('/recruiter/notifications')} />
+          <Cell icon="🔔" iconBg="#FFE6E6" label="通知中心" value={profileStats.notifications} link onClick={() => navigate('/recruiter/notifications')} />
           <Cell icon="💬" iconBg="#ECF9F1" label="智能客服" link onClick={() => navigate('/support')} />
           <Cell icon="🛡" iconBg="#E8F5FF" label="隐私与公开设置" link />
           <Cell icon="⚙" iconBg="#F2F2F2" label="账号设置" link />
@@ -883,48 +873,6 @@ function RealTalentEntry() {
               <span className="grow tiny muted">No real applications yet.</span>
             </div>
           )}
-        </div>
-
-        <div className="btn-block-wrap">
-          <button className="btn btn-primary" onClick={() => navigate('/recruiter/talent')}>进入完整人才池</button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-function TalentEntry() {
-  const navigate = useNavigate()
-  const activeTalents = talentPool.filter(item => item.status === 'active').slice(0, 5)
-
-  return (
-    <>
-      <NavBar title="人才池" back={false} right={<span style={{ color: 'var(--wx-green)' }} onClick={() => navigate('/recruiter/talent')}>查看全部 ›</span>} />
-      <div className="page has-tabbar">
-        <div className="row" style={{ background: '#fff', padding: '16px', gap: 0 }}>
-          {[
-            ['总人才', 21],
-            ['本月新增', 8],
-            ['活跃沟通', 5],
-            ['高匹配', 4],
-          ].map(([label, value]) => (
-            <div key={label} className="grow center">
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
-              <div className="tiny muted" style={{ marginTop: 2 }}>{label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="cell-group-title">活跃人才（最近互动）</div>
-        <div className="cell-group">
-          {activeTalents.map(item => (
-            <div key={item.id} className="cell link" onClick={() => navigate('/recruiter/talent/' + item.id)}>
-              <span className="avatar" style={{ width: 36, height: 36, borderRadius: 6, background: pickColor(item.logoIdx), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, marginRight: 10, flexShrink: 0 }}>{item.name[0]}</span>
-              <span className="grow" style={{ fontSize: 14 }}>{item.name}{item.virtual && <span className="tag tag-gray" style={{ marginLeft: 4, fontSize: 10 }}>虚拟</span>}</span>
-              <span className="tag tag-green" style={{ fontSize: 12 }}>{item.matchAvg}%</span>
-              <span className="cell-arrow">›</span>
-            </div>
-          ))}
         </div>
 
         <div className="btn-block-wrap">

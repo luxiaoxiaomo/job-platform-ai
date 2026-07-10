@@ -350,18 +350,192 @@ def _source_text(item: Any) -> str | None:
     return _string_or_none(item)
 
 
-def _clean_resume_value(value: str | None) -> str | None:
+_RESUME_VALUE_STOP_LABELS = [
+    "姓名",
+    "真实姓名",
+    "性别",
+    "年龄",
+    "出生年月",
+    "出生日期",
+    "生日",
+    "手机",
+    "手机号",
+    "电话",
+    "联系电话",
+    "邮箱",
+    "最高学历",
+    "学历",
+    "教育程度",
+    "工作年限",
+    "工作经验",
+    "从业经验",
+    "经验",
+    "所在城市",
+    "当前城市",
+    "城市",
+    "地点",
+    "职业方向",
+    "求职意向",
+    "目标岗位",
+    "求职岗位",
+    "应聘岗位",
+    "期望职位",
+    "职位",
+    "岗位",
+    "期望薪资",
+    "薪资",
+    "技能",
+    "项目",
+    "教育经历",
+    "工作经历",
+    "证书",
+    "Name",
+    "Full Name",
+    "Gender",
+    "Age",
+    "Birth",
+    "Mobile",
+    "Phone",
+    "Email",
+    "E-mail",
+    "Highest Education",
+    "Education",
+    "Degree",
+    "Work Years",
+    "Work Experience",
+    "Years of Experience",
+    "Experience",
+    "City",
+    "Target Position",
+    "Career Direction",
+    "Desired Position",
+    "Position",
+    "Salary",
+    "Skills",
+    "Project",
+    "Projects",
+    "School",
+    "Major",
+    "Company",
+]
+
+
+_RESUME_TITLE_WORDS = ["简历", "个人简历", "求职", "应聘", "个人总结", "自我评价", "工作背景", "工作经历", "项目经历", "教育经历", "技能", "resume", "cv"]
+
+
+def _resume_label_pattern(labels: list[str]) -> str:
+    parts = []
+    for label in sorted(labels, key=len, reverse=True):
+        escaped = re.escape(label)
+        if re.fullmatch(r"[A-Za-z][A-Za-z ]*", label):
+            escaped = rf"(?<![A-Za-z]){escaped}(?![A-Za-z])"
+        parts.append(escaped)
+    return "|".join(parts)
+
+
+def _clean_resume_value(value: str | None, stop_labels: list[str] | None = None) -> str | None:
     if value is None:
         return None
-    cleaned = re.split(r"[，,；;|/]", value.strip(), maxsplit=1)[0].strip(" ：:\t\r\n")
+    cleaned = value.strip()
+    if stop_labels:
+        label_pattern = _resume_label_pattern(stop_labels)
+        cleaned = re.split(rf"\s+(?=(?:{label_pattern})\s*[:：])", cleaned, maxsplit=1, flags=re.IGNORECASE)[0]
+    cleaned = re.split(r"[，,；;|/]", cleaned, maxsplit=1)[0].strip(" ：:\t\r\n")
     return cleaned or None
 
 
 def _extract_labeled_value(text: str, labels: list[str], max_chars: int = 80) -> str | None:
-    label_pattern = "|".join(re.escape(label) for label in labels)
+    label_pattern = _resume_label_pattern(labels)
     pattern = rf"(?:{label_pattern})\s*[:：]\s*([^\n\r]{{1,{max_chars}}})"
     match = re.search(pattern, text, flags=re.IGNORECASE)
-    return _clean_resume_value(match.group(1)) if match else None
+    return _clean_resume_value(match.group(1), _RESUME_VALUE_STOP_LABELS) if match else None
+
+
+def _normalize_resume_gender(value: str | None) -> str | None:
+    cleaned = _clean_resume_value(value)
+    if not cleaned:
+        return None
+    lowered = cleaned.lower()
+    if cleaned.startswith("男") or lowered.startswith("male") or lowered in {"m"}:
+        return "男"
+    if cleaned.startswith("女") or lowered.startswith("female") or lowered in {"f"}:
+        return "女"
+    return cleaned
+
+
+def _map_resume_education_level(text: str | None) -> str | None:
+    if not text:
+        return None
+    for level in ["博士", "硕士", "研究生", "本科", "大专", "专科", "高中", "中专"]:
+        if level in text:
+            return "大专" if level == "专科" else level
+    lowered = text.lower()
+    mappings = [
+        ("ph.d", "博士"),
+        ("phd", "博士"),
+        ("doctor", "博士"),
+        ("master", "硕士"),
+        ("mba", "硕士"),
+        ("undergraduate", "本科"),
+        ("bachelor", "本科"),
+        ("postgraduate", "研究生"),
+        ("graduate", "研究生"),
+        ("associate", "大专"),
+        ("junior college", "大专"),
+        ("college", "大专"),
+        ("high school", "高中"),
+    ]
+    for token, level in mappings:
+        if token in lowered:
+            return level
+    return None
+
+
+def _normalize_resume_education(value: str | None) -> str | None:
+    cleaned = _clean_resume_value(value)
+    if not cleaned:
+        return None
+    return _map_resume_education_level(cleaned) or cleaned
+
+
+def _resume_name_candidate(line: str) -> str | None:
+    candidate = line.strip(" -_｜|")
+    if not candidate or any(char.isdigit() for char in candidate):
+        return None
+    lowered = candidate.lower()
+    if any(word.lower() in lowered for word in _RESUME_TITLE_WORDS):
+        return None
+    if re.search(r"[:：@]", candidate):
+        return None
+    if re.search(r"手机|电话|邮箱|性别|年龄|学历|经验|技能|项目|公司|岗位|职位|gender|age|education|experience|skill", candidate, flags=re.IGNORECASE):
+        return None
+    if re.search(r"[\u4e00-\u9fff]", candidate):
+        compact = re.sub(r"\s+", "", candidate)
+        return candidate if 2 <= len(compact) <= 6 else None
+    words = candidate.split()
+    return candidate if 2 <= len(candidate) <= 40 and 1 <= len(words) <= 4 else None
+
+def _extract_name_from_file_name(original_name: str | None) -> str | None:
+    if not original_name:
+        return None
+    stem = Path(original_name).stem
+    for token in reversed(re.split(r"[\s_\-—–丨|]+", stem)):
+        candidate = _resume_name_candidate(token)
+        if candidate and re.search(r"[\u4e00-\u9fff]", candidate):
+            return candidate
+    return None
+
+
+def _extract_position_from_headline(lines: list[str]) -> str | None:
+    if not lines:
+        return None
+    for part in re.split(r"[丨|/，,；;]", lines[0]):
+        candidate = part.strip(" ：:-_\t")
+        if not candidate or any(token in candidate for token in ["岁", "年经验", "本科", "硕士", "博士", "大专", "专科", "在职"]):
+            continue
+        if re.search(r"经理|产品|工程师|顾问|运营|设计|开发|分析师|主管|总监|专员|HR", candidate, flags=re.IGNORECASE):
+            return candidate
+    return None
 
 
 def _extract_first_match(text: str, pattern: str) -> str | None:
@@ -1035,12 +1209,6 @@ class ResumeService:
                 file_size=len(content),
                 parsed_snapshot=snapshot,
             )
-        else:
-            resume.file_url = file_url
-            resume.file_name = original_name
-            resume.content_type = file.content_type
-            resume.file_size = len(content)
-            resume.parsed_snapshot = snapshot
 
         saved_resume = await ResumeRepository.flush_resume(db, resume)
         upload = await ResumeRepository.add_upload(
@@ -1070,8 +1238,6 @@ class ResumeService:
                 started_at=datetime.now(timezone.utc).replace(tzinfo=None),
             ),
         )
-        saved_resume.current_upload_id = upload.id
-        saved_resume.current_parse_run_id = parse_run.id
 
         await ResumeService._run_local_parse(
             db=db,
@@ -1081,6 +1247,14 @@ class ResumeService:
             saved_path=saved_path,
             extension=extension,
         )
+        if parse_run.status == "succeeded":
+            saved_resume.file_url = file_url
+            saved_resume.file_name = original_name
+            saved_resume.content_type = file.content_type
+            saved_resume.file_size = len(content)
+            saved_resume.parsed_snapshot = snapshot
+            saved_resume.current_upload_id = upload.id
+            saved_resume.current_parse_run_id = parse_run.id
 
         await db.commit()
         await db.refresh(saved_resume)
@@ -1175,7 +1349,7 @@ class ResumeService:
         parse_run: ResumeParseRun,
         text: str,
     ) -> None:
-        structured_json, confidence = ResumeService._parse_text_to_structured_json(text, current_user)
+        structured_json, confidence = ResumeService._parse_text_to_structured_json(text, current_user, original_name=upload.original_file_name)
         profile = ResumeStructuredProfile(
             seeker_id=current_user.id,
             upload_id=upload.id,
@@ -1194,7 +1368,7 @@ class ResumeService:
         await ResumeRepository.add_projection_rows(db, **rows)
 
     @staticmethod
-    def _parse_text_to_structured_json(text: str, current_user: User) -> tuple[dict[str, Any], float]:
+    def _parse_text_to_structured_json(text: str, current_user: User, original_name: str | None = None) -> tuple[dict[str, Any], float]:
         normalized = re.sub(r"[ \t]+", " ", text.strip())
         lines = [line.strip() for line in re.split(r"[\r\n]+", normalized) if line.strip()]
 
@@ -1206,12 +1380,10 @@ class ResumeService:
         if not email:
             email = _extract_first_match(normalized, r"([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})")
 
-        gender = _extract_labeled_value(normalized, ["性别", "Gender"], max_chars=10)
-        if gender:
-            gender = "男" if gender.startswith("男") else "女" if gender.startswith("女") else gender
-        elif re.search(r"(^|[，,；;\s|/])男($|[，,；;\s|/])", normalized):
+        gender = _normalize_resume_gender(_extract_labeled_value(normalized, ["性别", "Gender"], max_chars=10))
+        if not gender and re.search(r"(^|[，,；;\s|/])男($|[，,；;\s|/])", normalized):
             gender = "男"
-        elif re.search(r"(^|[，,；;\s|/])女($|[，,；;\s|/])", normalized):
+        elif not gender and re.search(r"(^|[，,；;\s|/])女($|[，,；;\s|/])", normalized):
             gender = "女"
 
         age = _int_or_none(_extract_labeled_value(normalized, ["年龄", "Age"], max_chars=10))
@@ -1228,25 +1400,33 @@ class ResumeService:
                     if 16 <= calculated_age <= 70:
                         age = calculated_age
 
-        real_name = _extract_labeled_value(normalized, ["姓名", "真实姓名", "Name"], max_chars=30)
-        if not real_name and lines:
-            first_line = lines[0].strip(" -_｜|")
-            if 2 <= len(first_line) <= 12 and not any(char.isdigit() for char in first_line):
-                blocked_words = ["简历", "个人简历", "求职", "应聘", "resume", "cv"]
-                if not any(word.lower() in first_line.lower() for word in blocked_words):
-                    real_name = first_line
+        real_name = _extract_labeled_value(normalized, ["姓名", "真实姓名", "Name", "Full Name"], max_chars=40)
+        if not real_name:
+            real_name = _extract_name_from_file_name(original_name)
+        if not real_name:
+            for line in lines[:8]:
+                real_name = _resume_name_candidate(line)
+                if real_name:
+                    break
         if not real_name:
             real_name = current_user.display_name
 
-        highest_education = _extract_labeled_value(normalized, ["最高学历", "学历", "教育程度", "Education"], max_chars=30)
+        highest_education = _normalize_resume_education(
+            _extract_labeled_value(
+                normalized,
+                ["最高学历", "学历", "教育程度", "Education", "Highest Education", "Degree"],
+                max_chars=40,
+            )
+        )
         if not highest_education:
-            for level in ["博士", "硕士", "研究生", "本科", "大专", "专科", "高中", "中专"]:
-                if level in normalized:
-                    highest_education = level
-                    break
+            highest_education = _map_resume_education_level(normalized)
 
         work_years = None
-        work_years_text = _extract_labeled_value(normalized, ["工作年限", "工作经验", "经验", "Experience"], max_chars=30)
+        work_years_text = _extract_labeled_value(
+            normalized,
+            ["工作年限", "工作经验", "从业经验", "经验", "Experience", "Work Experience", "Work Years", "Years of Experience"],
+            max_chars=40,
+        )
         years_source = work_years_text or normalized
         years_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:年|years?)", years_source, flags=re.IGNORECASE)
         if years_match:
@@ -1255,9 +1435,11 @@ class ResumeService:
         current_city = _extract_labeled_value(normalized, ["所在城市", "当前城市", "城市", "地点", "City"], max_chars=40)
         target_position = _extract_labeled_value(
             normalized,
-            ["求职意向", "目标岗位", "应聘岗位", "期望职位", "职位", "岗位", "Position"],
-            max_chars=80,
+            ["职业方向", "求职意向", "目标岗位", "求职岗位", "应聘岗位", "期望职位", "职位", "岗位", "Target Position", "Career Direction", "Desired Position", "Position"],
+            max_chars=120,
         )
+        if not target_position:
+            target_position = _extract_position_from_headline(lines)
         expected_salary = _extract_labeled_value(normalized, ["期望薪资", "薪资", "Salary"], max_chars=40)
 
         skills = ResumeService._extract_skill_items(normalized)

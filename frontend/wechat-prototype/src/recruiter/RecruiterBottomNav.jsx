@@ -1,13 +1,26 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { TabBar } from '../components/ui.jsx'
-import { recruiterChats } from '../mock/data.js'
+import { listMyConversations } from '../services/index.js'
 
 /* ============ 招聘端底部导航（可复用） ============ */
 export function RecruiterBottomNav() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const unread = recruiterChats.reduce((s, c) => s + c.unread, 0)
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    listMyConversations({ limit: 100 })
+      .then(data => {
+        if (!alive) return
+        setUnread((data.items || []).reduce((sum, item) => sum + (item.latest_message ? 1 : 0), 0))
+      })
+      .catch(() => {
+        if (alive) setUnread(0)
+      })
+    return () => { alive = false }
+  }, [])
 
   // 根据 URL 判断当前活跃 tab
   let active = 'jobs'

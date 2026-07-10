@@ -1,7 +1,6 @@
 """
 手机号哈希工具测试
 """
-import pytest
 from app.utils.phone_hash import hash_phone
 
 

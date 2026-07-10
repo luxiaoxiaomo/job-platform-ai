@@ -1,7 +1,7 @@
 """Search API tests."""
 from httpx import AsyncClient
 
-from tests.test_api.test_company_certifications import create_admin_token, register_and_get_token
+from tests.test_api.test_company_certifications import register_and_get_token
 from tests.test_api.test_jobs import approve_current_recruiter_certification, job_payload
 from tests.test_api.test_matches import create_confirmed_resume_profile
 

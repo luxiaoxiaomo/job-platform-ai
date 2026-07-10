@@ -161,12 +161,12 @@ export function RecruiterTalentPool() {
 
   return (
     <>
-      <NavBar title="人才池" right={<span style={{ color: 'var(--wx-green)', cursor: 'pointer' }} onClick={() => setShowBatch(true)}>批量操作</span>} />
+      <NavBar title="人才池" />
 
       <div className="page has-tabbar" style={{ paddingBottom: 80 }}>
         {/* 总览统计 */}
         <div className="row" style={{ background: '#fff', padding: '14px 16px', gap: 0 }}>
-          {[['总人才', talentStats.total], ['本月新增', talentStats.newThisMonth], ['活跃沟通', talentStats.activeChatting], ['已标记', talentStats.starred]].map(([k, v], i) => (
+          {[['总候选', applicationsLoading ? '...' : applications.length], ['新投递', applicationsLoading ? '...' : applications.filter(item => item.status === 'submitted').length], ['沟通中', applicationsLoading ? '...' : applications.filter(item => ['viewed', 'interview_invited'].includes(item.status)).length], ['已录用', applicationsLoading ? '...' : applications.filter(item => item.status === 'hired').length]].map(([k, v], i) => (
             <div key={i} className="grow center">
               <div style={{ fontSize: 20, fontWeight: 700 }}>{v}</div>
               <div className="tiny muted" style={{ marginTop: 2 }}>{k}</div>
@@ -176,7 +176,7 @@ export function RecruiterTalentPool() {
 
         <div className="row between padx" style={{ background: '#fff', padding: '10px 16px', borderTop: '0.5px solid var(--wx-line-light)', borderBottom: '0.5px solid var(--wx-line-light)' }}>
           <div className="row gap6">
-            {[{ k: 'applications', l: '真实投递' }, { k: 'demo', l: '演示人才池' }].map(item => (
+            {[{ k: 'applications', l: '真实投递' }].map(item => (
               <span
                 key={item.k}
                 className={`tag ${mode === item.k ? 'tag-green' : 'tag-gray'}`}

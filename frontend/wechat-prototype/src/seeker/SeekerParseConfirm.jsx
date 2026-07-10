@@ -15,17 +15,21 @@ export function SeekerParseConfirm() {
   const [tagOptions, setTagOptions] = useState([])
   const [selectedTagIds, setSelectedTagIds] = useState([])
   const [tagOptionsLoading, setTagOptionsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     // 调用真实 API
     getStructuredResult(parseRunId)
       .then(result => {
         setData(result)
+        setError('')
         setSelectedTagIds((result.profile?.tag_refs || []).map(item => String(item.id)))
         setLoading(false)
       })
       .catch(err => {
         console.error('获取结构化结果失败:', err)
+        setData(null)
+        setError(err.message || '解析结果不存在')
         setLoading(false)
       })
   }, [parseRunId])
@@ -99,7 +103,9 @@ export function SeekerParseConfirm() {
         <NavBar title="解析结果确认" right={<HomeNavLink />} />
         <div className="page" style={{ textAlign: 'center', padding: '60px 20px' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>❌</div>
-          <div style={{ color: '#999' }}>解析结果不存在</div>
+          <div style={{ color: '#999' }}>{error || '解析结果不存在'}</div>
+          <button className="btn btn-default" style={{ marginTop: 20, width: 'auto', padding: '0 24px' }}
+            onClick={() => navigate('/seeker/parse-history')}>返回历史列表</button>
         </div>
       </>
     )

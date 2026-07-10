@@ -2,11 +2,11 @@
 $ErrorActionPreference = "Continue"
 
 Write-Host "==================================" -ForegroundColor Green
-Write-Host "  API功能验证测试 (Port 8001)" -ForegroundColor Green
+Write-Host "  API功能验证测试 (Port 8003)" -ForegroundColor Green
 Write-Host "==================================" -ForegroundColor Green
 Write-Host ""
 
-$BASE_URL = "http://127.0.0.1:8001"
+$BASE_URL = "http://127.0.0.1:8003"
 
 # 测试1: 健康检查
 Write-Host "Test 1: Health Check" -ForegroundColor Cyan

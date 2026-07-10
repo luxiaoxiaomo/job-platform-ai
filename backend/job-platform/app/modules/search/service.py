@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.job.models import Job
-from app.modules.resume.models import ResumeBasicInfo, ResumeStructuredProfile, SeekerResume
+from app.modules.resume.models import ResumeBasicInfo, SeekerResume
 from app.modules.search.repository import SearchRepository
 from app.modules.search.schemas import (
     SearchJobItemResponse,

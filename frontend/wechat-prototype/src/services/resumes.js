@@ -8,6 +8,11 @@ export async function uploadResume(file) {
   const formData = new FormData()
   formData.append('file', file)
   const result = await postForm('/api/v1/resumes/me/upload', formData)
+  const uploadFailed = result?.upload?.status === 'failed'
+  const parseFailed = result?.parse_run?.status && result.parse_run.status !== 'succeeded'
+  if (uploadFailed || parseFailed) {
+    throw new Error(result?.upload?.error_message || result?.parse_run?.error_message || '简历解析失败，请换一份文件重试')
+  }
   if (result?.resume) {
     return {
       ...result.resume,
