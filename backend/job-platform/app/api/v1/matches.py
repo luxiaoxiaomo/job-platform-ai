@@ -1,6 +1,7 @@
 """
 Rule-based job matching API.
 """
+
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
@@ -40,15 +41,22 @@ from app.modules.match.schemas import (
     MatchRuleTemplateCreateRequest,
 )
 from app.modules.match.service import MatchService
-from app.modules.match.writes import IntelligentMatchingStrategyWriteService, MatchRuleWriteService
+from app.modules.match.strategy_writes import IntelligentMatchingStrategyWriteService
+from app.modules.match.writes import MatchRuleWriteService
 from app.modules.user.models import User
 
 router = APIRouter()
 
 
-@router.get("/intelligent/strategies", response_model=IntelligentMatchingStrategyListResponse)
+@router.get(
+    "/intelligent/strategies", response_model=IntelligentMatchingStrategyListResponse
+)
 async def list_intelligent_matching_strategies(
-    status_filter: str | None = Query(default=None, alias="status", pattern="^(draft|evaluating|testing|active|archived)$"),
+    status_filter: str | None = Query(
+        default=None,
+        alias="status",
+        pattern="^(draft|evaluating|testing|active|archived)$",
+    ),
     base_rule_config_id: int | None = Query(default=None, gt=0),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
@@ -65,17 +73,24 @@ async def list_intelligent_matching_strategies(
     )
 
 
-@router.post("/intelligent/strategies", response_model=IntelligentMatchingStrategyResponse)
+@router.post(
+    "/intelligent/strategies", response_model=IntelligentMatchingStrategyResponse
+)
 async def create_intelligent_matching_strategy(
     payload: IntelligentMatchingStrategyCreateRequest,
     current_user: User = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
     """Create an intelligent matching strategy draft."""
-    return await IntelligentMatchingStrategyWriteService.create_strategy(db, current_user, payload)
+    return await IntelligentMatchingStrategyWriteService.create_strategy(
+        db, current_user, payload
+    )
 
 
-@router.get("/intelligent/strategies/{strategy_id}", response_model=IntelligentMatchingStrategyResponse)
+@router.get(
+    "/intelligent/strategies/{strategy_id}",
+    response_model=IntelligentMatchingStrategyResponse,
+)
 async def get_intelligent_matching_strategy(
     strategy_id: int,
     current_user: User = Depends(require_role("admin")),
@@ -85,7 +100,10 @@ async def get_intelligent_matching_strategy(
     return await IntelligentMatchingStrategyWriteService.get_strategy(db, strategy_id)
 
 
-@router.patch("/intelligent/strategies/{strategy_id}", response_model=IntelligentMatchingStrategyResponse)
+@router.patch(
+    "/intelligent/strategies/{strategy_id}",
+    response_model=IntelligentMatchingStrategyResponse,
+)
 async def update_intelligent_matching_strategy(
     strategy_id: int,
     payload: IntelligentMatchingStrategyUpdateRequest,
@@ -93,10 +111,15 @@ async def update_intelligent_matching_strategy(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an editable intelligent matching strategy draft."""
-    return await IntelligentMatchingStrategyWriteService.update_strategy(db, current_user, strategy_id, payload)
+    return await IntelligentMatchingStrategyWriteService.update_strategy(
+        db, current_user, strategy_id, payload
+    )
 
 
-@router.post("/intelligent/strategies/{strategy_id}/clone", response_model=IntelligentMatchingStrategyResponse)
+@router.post(
+    "/intelligent/strategies/{strategy_id}/clone",
+    response_model=IntelligentMatchingStrategyResponse,
+)
 async def clone_intelligent_matching_strategy(
     strategy_id: int,
     payload: IntelligentMatchingStrategyCloneRequest,
@@ -104,7 +127,9 @@ async def clone_intelligent_matching_strategy(
     db: AsyncSession = Depends(get_db),
 ):
     """Clone an intelligent matching strategy into a new draft."""
-    return await IntelligentMatchingStrategyWriteService.clone_strategy(db, current_user, strategy_id, payload)
+    return await IntelligentMatchingStrategyWriteService.clone_strategy(
+        db, current_user, strategy_id, payload
+    )
 
 
 @router.post(
@@ -118,17 +143,25 @@ async def run_intelligent_matching_evaluation(
     db: AsyncSession = Depends(get_db),
 ):
     """Run an offline evaluation for one intelligent matching strategy."""
-    return await IntelligentMatchingStrategyWriteService.run_evaluation(db, current_user, strategy_id, payload)
+    return await IntelligentMatchingStrategyWriteService.run_evaluation(
+        db, current_user, strategy_id, payload
+    )
 
 
-@router.get("/intelligent/evaluations/{evaluation_id}", response_model=IntelligentMatchingEvaluationResponse)
+@router.get(
+    "/intelligent/evaluations/{evaluation_id}",
+    response_model=IntelligentMatchingEvaluationResponse,
+)
 async def get_intelligent_matching_evaluation(
     evaluation_id: int,
     current_user: User = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
     """Get one intelligent matching offline evaluation report."""
-    return await IntelligentMatchingStrategyWriteService.get_evaluation(db, evaluation_id)
+    return await IntelligentMatchingStrategyWriteService.get_evaluation(
+        db, evaluation_id
+    )
+
 
 @router.get("/rule-configs", response_model=MatchRuleConfigListResponse)
 async def list_match_rule_configs(
@@ -160,7 +193,9 @@ async def get_default_match_rule_config(
     return await MatchService.get_default_rule_config_from_db(db)
 
 
-@router.post("/rule-configs/templates", response_model=MatchRuleConfigVersionCreateResponse)
+@router.post(
+    "/rule-configs/templates", response_model=MatchRuleConfigVersionCreateResponse
+)
 async def create_match_rule_template(
     payload: MatchRuleTemplateCreateRequest,
     current_user: User = Depends(require_role("admin")),
@@ -170,7 +205,9 @@ async def create_match_rule_template(
     config = await MatchRuleWriteService.create_template(db, current_user, payload)
     return MatchRuleConfigVersionCreateResponse(
         message="rule_config_template_created",
-        config=MatchService._rule_config_response(MatchRuleConfigService.from_model(config)),
+        config=MatchService._rule_config_response(
+            MatchRuleConfigService.from_model(config)
+        ),
     )
 
 
@@ -184,7 +221,10 @@ async def get_match_rule_config(
     return await MatchService.get_rule_config(db, config_id)
 
 
-@router.get("/rule-configs/{config_id}/release-check", response_model=MatchRuleReleaseCheckResponse)
+@router.get(
+    "/rule-configs/{config_id}/release-check",
+    response_model=MatchRuleReleaseCheckResponse,
+)
 async def check_match_rule_config_release(
     config_id: int,
     current_user: User = Depends(require_role("admin")),
@@ -194,7 +234,9 @@ async def check_match_rule_config_release(
     return await MatchRuleWriteService.release_check(db, config_id)
 
 
-@router.post("/rule-configs/{config_id}/publish", response_model=MatchRulePublishResponse)
+@router.post(
+    "/rule-configs/{config_id}/publish", response_model=MatchRulePublishResponse
+)
 async def publish_match_rule_config(
     config_id: int,
     payload: MatchRulePublishRequest,
@@ -202,10 +244,14 @@ async def publish_match_rule_config(
     db: AsyncSession = Depends(get_db),
 ):
     """Publish one draft/testing match rule config as active."""
-    return await MatchRuleWriteService.publish_rule_config(db, current_user, config_id, payload)
+    return await MatchRuleWriteService.publish_rule_config(
+        db, current_user, config_id, payload
+    )
 
 
-@router.get("/rule-configs/{config_id}/history", response_model=MatchRuleConfigListResponse)
+@router.get(
+    "/rule-configs/{config_id}/history", response_model=MatchRuleConfigListResponse
+)
 async def get_match_rule_config_history(
     config_id: int,
     current_user: User = Depends(require_role("admin")),
@@ -215,7 +261,10 @@ async def get_match_rule_config_history(
     return await MatchService.get_rule_config_history(db, config_id)
 
 
-@router.get("/rule-configs/{config_id}/compare/{target_config_id}", response_model=MatchRuleConfigCompareResponse)
+@router.get(
+    "/rule-configs/{config_id}/compare/{target_config_id}",
+    response_model=MatchRuleConfigCompareResponse,
+)
 async def compare_match_rule_configs(
     config_id: int,
     target_config_id: int,
@@ -226,7 +275,10 @@ async def compare_match_rule_configs(
     return await MatchService.compare_rule_configs(db, config_id, target_config_id)
 
 
-@router.post("/rule-configs/{config_id}/versions", response_model=MatchRuleConfigVersionCreateResponse)
+@router.post(
+    "/rule-configs/{config_id}/versions",
+    response_model=MatchRuleConfigVersionCreateResponse,
+)
 async def create_match_rule_config_version(
     config_id: int,
     payload: MatchRuleConfigVersionCreateRequest,
@@ -234,13 +286,20 @@ async def create_match_rule_config_version(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new version from an existing rule config."""
-    config = await MatchRuleWriteService.create_version(db, current_user, config_id, payload)
+    config = await MatchRuleWriteService.create_version(
+        db, current_user, config_id, payload
+    )
     return MatchRuleConfigVersionCreateResponse(
-        config=MatchService._rule_config_response(MatchRuleConfigService.from_model(config))
+        config=MatchService._rule_config_response(
+            MatchRuleConfigService.from_model(config)
+        )
     )
 
 
-@router.post("/rule-configs/{config_id}/rollback", response_model=MatchRuleConfigVersionCreateResponse)
+@router.post(
+    "/rule-configs/{config_id}/rollback",
+    response_model=MatchRuleConfigVersionCreateResponse,
+)
 async def rollback_match_rule_config_version(
     config_id: int,
     payload: MatchRuleRollbackRequest,
@@ -248,10 +307,14 @@ async def rollback_match_rule_config_version(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new version by copying a historical rule config."""
-    config = await MatchRuleWriteService.rollback_version(db, current_user, config_id, payload)
+    config = await MatchRuleWriteService.rollback_version(
+        db, current_user, config_id, payload
+    )
     return MatchRuleConfigVersionCreateResponse(
         message="rule_config_version_rolled_back",
-        config=MatchService._rule_config_response(MatchRuleConfigService.from_model(config)),
+        config=MatchService._rule_config_response(
+            MatchRuleConfigService.from_model(config)
+        ),
     )
 
 
@@ -274,7 +337,10 @@ async def list_match_rule_experiments(
     )
 
 
-@router.get("/rule-experiments/{experiment_id}/effects", response_model=MatchRuleExperimentEffectResponse)
+@router.get(
+    "/rule-experiments/{experiment_id}/effects",
+    response_model=MatchRuleExperimentEffectResponse,
+)
 async def get_match_rule_experiment_effects(
     experiment_id: int,
     current_user: User = Depends(require_role("admin")),
@@ -291,11 +357,16 @@ async def create_match_rule_experiment(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a gray/AB test entry for rule versions."""
-    experiment = await MatchRuleWriteService.create_experiment(db, current_user, payload)
+    experiment = await MatchRuleWriteService.create_experiment(
+        db, current_user, payload
+    )
     return MatchService._experiment_response(experiment)
 
 
-@router.post("/rule-experiments/{experiment_id}/status", response_model=MatchRuleExperimentStatusUpdateResponse)
+@router.post(
+    "/rule-experiments/{experiment_id}/status",
+    response_model=MatchRuleExperimentStatusUpdateResponse,
+)
 async def update_match_rule_experiment_status(
     experiment_id: int,
     payload: MatchRuleExperimentStatusUpdateRequest,
@@ -303,10 +374,14 @@ async def update_match_rule_experiment_status(
     db: AsyncSession = Depends(get_db),
 ):
     """Pause, resume, start, or end one rule experiment."""
-    return await MatchRuleWriteService.update_experiment_status(db, current_user, experiment_id, payload)
+    return await MatchRuleWriteService.update_experiment_status(
+        db, current_user, experiment_id, payload
+    )
 
 
-@router.get("/rule-operation-audits", response_model=MatchRuleOperationAuditListResponse)
+@router.get(
+    "/rule-operation-audits", response_model=MatchRuleOperationAuditListResponse
+)
 async def list_match_rule_operation_audits(
     resource_type: str | None = Query(default=None),
     resource_id: int | None = Query(default=None),
@@ -370,7 +445,9 @@ async def list_match_rule_audits(
     rule_config_id: int | None = Query(default=None),
     job_id: int | None = Query(default=None),
     seeker_id: int | None = Query(default=None),
-    experiment_bucket: str | None = Query(default=None, pattern="^(control|treatment)$"),
+    experiment_bucket: str | None = Query(
+        default=None, pattern="^(control|treatment)$"
+    ),
     created_from: datetime | None = Query(default=None),
     created_to: datetime | None = Query(default=None),
     skip: int = Query(default=0, ge=0),
@@ -420,4 +497,6 @@ async def get_recruiter_application_match(
     db: AsyncSession = Depends(get_db),
 ):
     """Get recruiter-side rule-based match analysis for one received application."""
-    return await MatchService.get_recruiter_application_match(db, current_user, application_id)
+    return await MatchService.get_recruiter_application_match(
+        db, current_user, application_id
+    )
