@@ -29,7 +29,8 @@ import { Login } from './common/Login.jsx'
 import { Register } from './common/Register.jsx'
 import { UserProfile } from './common/UserProfile.jsx'
 import { ProfileProvider } from './common/ProfileContext.jsx'
-import { AdminApp, AdminStandardPositionDetail, AdminTagLibraryList, AdminTagLibraryItemDetail } from './admin/AdminApp.jsx'
+import { AdminApp } from './admin/AdminApp.jsx'
+import { AdminStandardPositionDetail, AdminTagLibraryList, AdminTagLibraryItemDetail } from './admin/AdminBaseDataDetails.jsx'
 import { RealRecruiterChat, RealSeekerChat } from './common/RealMessagePages.jsx'
 const AdminRaApp = React.lazy(() => import('./admin-ra/app/AdminRaApp.jsx'))
 
