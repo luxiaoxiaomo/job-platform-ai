@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     ENV: str = "dev"  # dev/test/prod
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-change-in-production"
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"
 
     # 数据库配置
     DATABASE_URL: str = "postgresql+asyncpg://dev:dev123@localhost:5432/jobplatform_dev"
@@ -91,26 +93,41 @@ class Settings(BaseSettings):
 
 
 # 全局配置实例
-settings = Settings()
+def validate_production_settings(value: Settings) -> None:
+    """Fail fast when production configuration is unsafe."""
+    if value.ENV != "prod":
+        return
 
-# 生产环境配置校验
-if settings.ENV == "prod":
-    # 检查关键密钥不能使用默认值
-    if settings.SECRET_KEY == "your-secret-key-change-in-production":
-        raise ValueError("生产环境必须配置安全的SECRET_KEY")
+    if value.DEBUG:
+        raise ValueError("生产环境必须关闭DEBUG")
 
-    if settings.JWT_SECRET_KEY == "your-jwt-secret-key-change-in-production":
-        raise ValueError("生产环境必须配置安全的JWT_SECRET_KEY")
+    secret_fields = {
+        "SECRET_KEY": value.SECRET_KEY,
+        "JWT_SECRET_KEY": value.JWT_SECRET_KEY,
+        "PHONE_HASH_SECRET": value.PHONE_HASH_SECRET,
+    }
+    for field_name, secret in secret_fields.items():
+        if len(secret.strip()) < 32 or "change-in-production" in secret:
+            raise ValueError(f"生产环境必须配置安全的{field_name}")
 
-    if settings.PHONE_HASH_SECRET == "your-phone-hash-secret-change-in-production":
-        raise ValueError("生产环境必须配置安全的PHONE_HASH_SECRET")
-
-    if not settings.ENCRYPTION_KEY:
+    if not value.ENCRYPTION_KEY:
         raise ValueError("生产环境必须配置ENCRYPTION_KEY")
 
-    if "dev" in settings.DATABASE_URL.lower():
-        raise ValueError("生产环境不能使用dev数据库配置")
-
-    # 检查数据库URL不能使用默认值
-    if "dev:dev123" in settings.DATABASE_URL or "localhost" in settings.DATABASE_URL:
+    database_url = value.DATABASE_URL.lower()
+    if not database_url.startswith(("postgresql://", "postgresql+asyncpg://")):
+        raise ValueError("生产环境数据库必须使用PostgreSQL")
+    if "dev:dev123" in database_url or "localhost" in database_url or "/jobplatform_dev" in database_url:
         raise ValueError("生产环境不能使用默认数据库配置")
+
+    if not value.ALLOWED_ORIGINS:
+        raise ValueError("生产环境必须配置ALLOWED_ORIGINS")
+    for origin in value.ALLOWED_ORIGINS:
+        normalized = origin.strip().lower()
+        if normalized == "*" or "localhost" in normalized or "127.0.0.1" in normalized:
+            raise ValueError("生产环境ALLOWED_ORIGINS不能包含通配符或本地地址")
+        if not normalized.startswith("https://"):
+            raise ValueError("生产环境ALLOWED_ORIGINS必须使用HTTPS")
+
+
+settings = Settings()
+validate_production_settings(settings)

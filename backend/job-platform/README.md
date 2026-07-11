@@ -159,6 +159,8 @@ backend/job-platform/
 # 基础配置
 ENV=dev
 DEBUG=True
+LOG_LEVEL=INFO
+LOG_FORMAT=json
 
 # 数据库配置
 DATABASE_URL=postgresql+asyncpg://dev:dev123@localhost:5432/jobplatform_dev
@@ -182,6 +184,18 @@ OPENAI_API_KEY=
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
+
+### 生产启动门禁
+
+当 `ENV=prod` 时，应用会在导入/启动阶段 fail-fast，并要求：
+
+- `DEBUG=false`；
+- `SECRET_KEY`、`JWT_SECRET_KEY`、`PHONE_HASH_SECRET` 至少 32 字符且不能使用模板默认值；
+- 配置有效的 `ENCRYPTION_KEY`；
+- `DATABASE_URL` 使用 PostgreSQL，且不能指向 localhost、开发账号或开发库；
+- `ALLOWED_ORIGINS` 仅包含明确的 HTTPS 域名，不能使用 `*` 或本地地址。
+
+HTTP 响应会返回 `X-Request-ID`。可由调用方传入该请求头进行跨服务追踪；未传入时服务自动生成 UUID。应用日志默认按单行 JSON 输出，包含时间、级别、logger、message、request_id 和安全上下文，不记录请求体、查询参数、Authorization、Cookie、密码、token 或 secret。
 
 ---
 
@@ -235,8 +249,13 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
    - 基于Redis实现
 
 4. **配置校验**:
-   - 生产环境强制校验关键密钥、加密配置和数据库连接
+   - 生产环境强制校验 DEBUG、关键密钥、加密配置、PostgreSQL 和 HTTPS CORS
    - Fail-fast原则，启动时检测错误
+
+5. **可观测性与脱敏**:
+   - 每个 HTTP 请求生成或传播 `X-Request-ID`
+   - JSON 结构化日志记录方法、路径、状态码和耗时
+   - 敏感键递归脱敏，生命周期日志不输出数据库 URL 或凭据
 
 ---
 

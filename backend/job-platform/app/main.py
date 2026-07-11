@@ -2,6 +2,7 @@
 空岗信息发布对接平台 - FastAPI应用入口
 """
 from pathlib import Path
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,18 +10,21 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
+from app.core.observability import RequestLoggingMiddleware, configure_logging
+
+
+configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
+logger = logging.getLogger("app.lifecycle")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
-    print(f"[START] {settings.PROJECT_NAME}")
-    print(f"[ENV] {settings.ENV}")
-    print(f"[DB] {settings.DATABASE_URL.split('@')[1] if '@' in settings.DATABASE_URL else 'Not configured'}")
+    logger.info("application started", extra={"context": {"project": settings.PROJECT_NAME, "env": settings.ENV}})
     yield
     # 关闭时执行
-    print("[STOP] Application shutdown")
+    logger.info("application stopped", extra={"context": {"project": settings.PROJECT_NAME}})
 
 
 app = FastAPI(
@@ -31,6 +35,8 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENV != "prod" else None,
     lifespan=lifespan,
 )
+
+app.add_middleware(RequestLoggingMiddleware)
 
 # CORS配置
 app.add_middleware(
