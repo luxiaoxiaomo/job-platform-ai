@@ -7,7 +7,7 @@ from app.modules.application.models import JobApplication
 from app.modules.base_data.models import StandardPosition
 from app.modules.job.models import Job
 from app.modules.match.config import MatchRuleConfigService
-from app.modules.match.models import MatchRuleConfigModel, MatchRuleDimensionModel, MatchRuleExperimentModel, MatchRuleMatchAuditModel
+from app.modules.match.models import IntelligentMatchingStrategyModel, MatchRuleConfigModel, MatchRuleDimensionModel, MatchRuleExperimentModel, MatchRuleMatchAuditModel
 from app.modules.match.service import MatchService
 from app.modules.user.models import User
 from tests.test_api.test_company_certifications import create_admin_token, register_and_get_token
@@ -390,6 +390,203 @@ class TestMatches:
         assert data["overall_score"] == round(sum(item["weighted_score"] for item in data["dimensions"]))
         assert data["source"]["strategy"] == "rule_v1"
         assert data["source"]["profile_parse_run_id"] == parse_run_id
+
+    async def test_active_intelligent_strategy_runs_hybrid_without_vector_dependency(
+        self,
+        client: AsyncClient,
+        db_session,
+        test_user_data,
+        test_recruiter_data,
+    ):
+        job_id = await create_active_people_soft_job(client, db_session, test_recruiter_data)
+        admin_token = await login_default_admin_token(client)
+        seeker_token = await register_and_get_token(client, test_user_data)
+        await create_confirmed_resume_profile(client, seeker_token)
+
+        favorite_response = await client.post(
+            f"/api/v1/jobs/seeker/favorites/{job_id}",
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+        assert favorite_response.status_code == 201
+
+        list_response = await client.get(
+            "/api/v1/matches/rule-configs",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        rule_config_id = list_response.json()["items"][0]["id"]
+        strategy = IntelligentMatchingStrategyModel(
+            name="runtime-hybrid-no-vector",
+            status="active",
+            base_rule_config_id=rule_config_id,
+            vector_recall={
+                "enabled": False,
+                "top_n": 100,
+                "min_similarity": 0.62,
+                "candidate_source": "job_resume_profile",
+            },
+            hybrid_weights={
+                "rule_score": 0.9,
+                "vector_score": 0,
+                "profile_coverage_score": 0.05,
+                "behavior_quality_score": 0.05,
+            },
+        )
+        db_session.add(strategy)
+        await db_session.commit()
+
+        match_response = await client.get(
+            f"/api/v1/matches/jobs/{job_id}/me",
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+
+        assert match_response.status_code == 200
+        match_data = match_response.json()
+        assert match_data["source"]["strategy"] == "intelligent_hybrid_v1"
+        assert match_data["source"]["intelligent_strategy_id"] == strategy.id
+        assert match_data["source"]["match_source"] == "hybrid"
+        assert match_data["source"]["recall_source"] == "rule_only"
+        assert match_data["source"]["degrade_reason"] is None
+
+        detail_response = await client.get(
+            f"/api/v1/matches/audits/{match_data['source']['audit_id']}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert detail_response.status_code == 200
+        intelligent_snapshot = next(
+            item for item in detail_response.json()["dimension_scores"] if item["key"] == "intelligent_scoring"
+        )
+        assert intelligent_snapshot["score"] == match_data["overall_score"]
+        assert intelligent_snapshot["match_source"] == "hybrid"
+        assert intelligent_snapshot["score_components"]["profile_coverage_score"] == 100
+        assert intelligent_snapshot["score_components"]["behavior_quality_score"] == 85
+
+    async def test_active_intelligent_strategy_degrades_when_vector_is_unavailable(
+        self,
+        client: AsyncClient,
+        db_session,
+        test_user_data,
+        test_recruiter_data,
+    ):
+        job_id = await create_active_people_soft_job(client, db_session, test_recruiter_data)
+        admin_token = await login_default_admin_token(client)
+        seeker_token = await register_and_get_token(client, test_user_data)
+        await create_confirmed_resume_profile(client, seeker_token)
+
+        list_response = await client.get(
+            "/api/v1/matches/rule-configs",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        rule_config_id = list_response.json()["items"][0]["id"]
+        strategy = IntelligentMatchingStrategyModel(
+            name="runtime-hybrid-vector-unavailable",
+            status="active",
+            base_rule_config_id=rule_config_id,
+            vector_recall={
+                "enabled": True,
+                "top_n": 100,
+                "min_similarity": 0.62,
+                "candidate_source": "job_resume_profile",
+            },
+            hybrid_weights={
+                "rule_score": 0.7,
+                "vector_score": 0.2,
+                "profile_coverage_score": 0.1,
+                "behavior_quality_score": 0,
+            },
+        )
+        db_session.add(strategy)
+        await db_session.commit()
+
+        match_response = await client.get(
+            f"/api/v1/matches/jobs/{job_id}/me",
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+
+        assert match_response.status_code == 200
+        match_data = match_response.json()
+        assert match_data["source"]["strategy"] == "intelligent_hybrid_v1"
+        assert match_data["source"]["intelligent_strategy_id"] == strategy.id
+        assert match_data["source"]["match_source"] == "rule_baseline"
+        assert match_data["source"]["recall_source"] == "rule_only"
+        assert match_data["source"]["degrade_reason"] == "vector_store_unavailable"
+
+        detail_response = await client.get(
+            f"/api/v1/matches/audits/{match_data['source']['audit_id']}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert detail_response.status_code == 200
+        intelligent_snapshot = next(
+            item for item in detail_response.json()["dimension_scores"] if item["key"] == "intelligent_scoring"
+        )
+        assert intelligent_snapshot["score"] == match_data["overall_score"]
+        assert intelligent_snapshot["match_source"] == "rule_baseline"
+        assert intelligent_snapshot["degrade_reason"] == "vector_store_unavailable"
+
+    async def test_active_intelligent_strategy_uses_local_vector_provider(
+        self,
+        client: AsyncClient,
+        db_session,
+        test_user_data,
+        test_recruiter_data,
+    ):
+        job_id = await create_active_people_soft_job(client, db_session, test_recruiter_data)
+        admin_token = await login_default_admin_token(client)
+        seeker_token = await register_and_get_token(client, test_user_data)
+        await create_confirmed_resume_profile(client, seeker_token)
+
+        list_response = await client.get(
+            "/api/v1/matches/rule-configs",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        rule_config_id = list_response.json()["items"][0]["id"]
+        strategy = IntelligentMatchingStrategyModel(
+            name="runtime-hybrid-local-vector",
+            status="active",
+            base_rule_config_id=rule_config_id,
+            vector_recall={
+                "enabled": True,
+                "provider": "local_profile_text",
+                "top_n": 100,
+                "min_similarity": 0.5,
+                "candidate_source": "job_resume_profile",
+            },
+            hybrid_weights={
+                "rule_score": 0.7,
+                "vector_score": 0.2,
+                "profile_coverage_score": 0.1,
+                "behavior_quality_score": 0,
+            },
+        )
+        db_session.add(strategy)
+        await db_session.commit()
+
+        match_response = await client.get(
+            f"/api/v1/matches/jobs/{job_id}/me",
+            headers={"Authorization": f"Bearer {seeker_token}"},
+        )
+
+        assert match_response.status_code == 200
+        match_data = match_response.json()
+        assert match_data["source"]["strategy"] == "intelligent_hybrid_v1"
+        assert match_data["source"]["intelligent_strategy_id"] == strategy.id
+        assert match_data["source"]["match_source"] == "hybrid"
+        assert match_data["source"]["recall_source"] == "rule_and_vector"
+        assert match_data["source"]["degrade_reason"] is None
+
+        detail_response = await client.get(
+            f"/api/v1/matches/audits/{match_data['source']['audit_id']}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert detail_response.status_code == 200
+        intelligent_snapshot = next(
+            item for item in detail_response.json()["dimension_scores"] if item["key"] == "intelligent_scoring"
+        )
+        assert intelligent_snapshot["match_source"] == "hybrid"
+        assert intelligent_snapshot["recall_source"] == "rule_and_vector"
+        assert intelligent_snapshot["degrade_reason"] is None
+        assert intelligent_snapshot["score_components"]["semantic_score"] is not None
+        assert intelligent_snapshot["vector_metadata"]["provider"] == "local_profile_text"
+        assert intelligent_snapshot["vector_metadata"]["vector_index_version"] == "local-profile-text-v1"
 
     async def test_recruiter_can_get_application_match(
         self,

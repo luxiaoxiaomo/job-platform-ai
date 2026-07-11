@@ -10,6 +10,13 @@ from app.core.dependencies import require_role
 from app.db.session import get_db
 from app.modules.match.config import MatchRuleConfigService
 from app.modules.match.schemas import (
+    IntelligentMatchingEvaluationResponse,
+    IntelligentMatchingEvaluationRunRequest,
+    IntelligentMatchingStrategyCloneRequest,
+    IntelligentMatchingStrategyCreateRequest,
+    IntelligentMatchingStrategyListResponse,
+    IntelligentMatchingStrategyResponse,
+    IntelligentMatchingStrategyUpdateRequest,
     JobMatchResponse,
     MatchQualityDashboardResponse,
     MatchRuleAuditListResponse,
@@ -33,11 +40,95 @@ from app.modules.match.schemas import (
     MatchRuleTemplateCreateRequest,
 )
 from app.modules.match.service import MatchService
-from app.modules.match.writes import MatchRuleWriteService
+from app.modules.match.writes import IntelligentMatchingStrategyWriteService, MatchRuleWriteService
 from app.modules.user.models import User
 
 router = APIRouter()
 
+
+@router.get("/intelligent/strategies", response_model=IntelligentMatchingStrategyListResponse)
+async def list_intelligent_matching_strategies(
+    status_filter: str | None = Query(default=None, alias="status", pattern="^(draft|evaluating|testing|active|archived)$"),
+    base_rule_config_id: int | None = Query(default=None, gt=0),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """List intelligent matching strategies for admin pages."""
+    return await IntelligentMatchingStrategyWriteService.list_strategies(
+        db,
+        status_filter=status_filter,
+        base_rule_config_id=base_rule_config_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.post("/intelligent/strategies", response_model=IntelligentMatchingStrategyResponse)
+async def create_intelligent_matching_strategy(
+    payload: IntelligentMatchingStrategyCreateRequest,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create an intelligent matching strategy draft."""
+    return await IntelligentMatchingStrategyWriteService.create_strategy(db, current_user, payload)
+
+
+@router.get("/intelligent/strategies/{strategy_id}", response_model=IntelligentMatchingStrategyResponse)
+async def get_intelligent_matching_strategy(
+    strategy_id: int,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get one intelligent matching strategy."""
+    return await IntelligentMatchingStrategyWriteService.get_strategy(db, strategy_id)
+
+
+@router.patch("/intelligent/strategies/{strategy_id}", response_model=IntelligentMatchingStrategyResponse)
+async def update_intelligent_matching_strategy(
+    strategy_id: int,
+    payload: IntelligentMatchingStrategyUpdateRequest,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an editable intelligent matching strategy draft."""
+    return await IntelligentMatchingStrategyWriteService.update_strategy(db, current_user, strategy_id, payload)
+
+
+@router.post("/intelligent/strategies/{strategy_id}/clone", response_model=IntelligentMatchingStrategyResponse)
+async def clone_intelligent_matching_strategy(
+    strategy_id: int,
+    payload: IntelligentMatchingStrategyCloneRequest,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clone an intelligent matching strategy into a new draft."""
+    return await IntelligentMatchingStrategyWriteService.clone_strategy(db, current_user, strategy_id, payload)
+
+
+@router.post(
+    "/intelligent/strategies/{strategy_id}/evaluations",
+    response_model=IntelligentMatchingEvaluationResponse,
+)
+async def run_intelligent_matching_evaluation(
+    strategy_id: int,
+    payload: IntelligentMatchingEvaluationRunRequest,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run an offline evaluation for one intelligent matching strategy."""
+    return await IntelligentMatchingStrategyWriteService.run_evaluation(db, current_user, strategy_id, payload)
+
+
+@router.get("/intelligent/evaluations/{evaluation_id}", response_model=IntelligentMatchingEvaluationResponse)
+async def get_intelligent_matching_evaluation(
+    evaluation_id: int,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get one intelligent matching offline evaluation report."""
+    return await IntelligentMatchingStrategyWriteService.get_evaluation(db, evaluation_id)
 
 @router.get("/rule-configs", response_model=MatchRuleConfigListResponse)
 async def list_match_rule_configs(

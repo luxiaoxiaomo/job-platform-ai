@@ -10,6 +10,8 @@ from sqlalchemy.orm import selectinload
 
 from app.modules.job.models import Job
 from app.modules.match.models import (
+    IntelligentMatchingEvaluationModel,
+    IntelligentMatchingStrategyModel,
     MatchRuleConfigModel,
     MatchRuleDimensionModel,
     MatchRuleExperimentModel,
@@ -227,6 +229,85 @@ class MatchRuleConfigRepository:
             .where(and_(*filters))
             .order_by(MatchRuleExperimentModel.updated_at.desc(), MatchRuleExperimentModel.id.desc())
             .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def list_intelligent_strategies(
+        db: AsyncSession,
+        *,
+        status_filter: str | None = None,
+        base_rule_config_id: int | None = None,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[list[IntelligentMatchingStrategyModel], int]:
+        filters = []
+        if status_filter is not None:
+            filters.append(IntelligentMatchingStrategyModel.status == status_filter)
+        if base_rule_config_id is not None:
+            filters.append(IntelligentMatchingStrategyModel.base_rule_config_id == base_rule_config_id)
+
+        total_query = select(func.count()).select_from(IntelligentMatchingStrategyModel)
+        if filters:
+            total_query = total_query.where(*filters)
+        total_result = await db.execute(total_query)
+        total = total_result.scalar_one()
+
+        query = (
+            select(IntelligentMatchingStrategyModel)
+            .order_by(IntelligentMatchingStrategyModel.updated_at.desc(), IntelligentMatchingStrategyModel.id.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        if filters:
+            query = query.where(*filters)
+        result = await db.execute(query)
+        return list(result.scalars().all()), total
+
+    @staticmethod
+    async def get_active_intelligent_strategy(
+        db: AsyncSession,
+        *,
+        base_rule_config_id: int | None = None,
+    ) -> Optional[IntelligentMatchingStrategyModel]:
+        filters = [IntelligentMatchingStrategyModel.status == "active"]
+        if base_rule_config_id is not None:
+            filters.append(IntelligentMatchingStrategyModel.base_rule_config_id == base_rule_config_id)
+        result = await db.execute(
+            select(IntelligentMatchingStrategyModel)
+            .where(*filters)
+            .order_by(IntelligentMatchingStrategyModel.updated_at.desc(), IntelligentMatchingStrategyModel.id.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_intelligent_strategy_by_id(
+        db: AsyncSession,
+        strategy_id: int,
+    ) -> Optional[IntelligentMatchingStrategyModel]:
+        result = await db.execute(
+            select(IntelligentMatchingStrategyModel).where(IntelligentMatchingStrategyModel.id == strategy_id)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_intelligent_strategy_by_name(
+        db: AsyncSession,
+        name: str,
+    ) -> Optional[IntelligentMatchingStrategyModel]:
+        result = await db.execute(
+            select(IntelligentMatchingStrategyModel).where(IntelligentMatchingStrategyModel.name == name)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_intelligent_evaluation_by_id(
+        db: AsyncSession,
+        evaluation_id: int,
+    ) -> Optional[IntelligentMatchingEvaluationModel]:
+        result = await db.execute(
+            select(IntelligentMatchingEvaluationModel).where(IntelligentMatchingEvaluationModel.id == evaluation_id)
         )
         return result.scalar_one_or_none()
 

@@ -62,7 +62,7 @@ async def health_check():
 
 
 # 注册路由
-from app.api.v1 import ai_prompts, applications, auth, base_data, company_certifications, jobs, matches, messages, notifications, resumes, search, seeker_profiles, users
+from app.api.v1 import ai_prompts, applications, auth, base_data, company_certifications, jobs, matches, messages, notifications, resumes, search, seeker_profiles, users  # noqa: E402
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["认证"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["用户"])
@@ -89,6 +89,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8003,
         reload=True if settings.ENV == "dev" else False,
     )

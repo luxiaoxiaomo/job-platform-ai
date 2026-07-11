@@ -15,7 +15,15 @@ from app.db.base import Base
 from app.modules.user.models import User  # noqa
 from app.modules.company_certification.models import CompanyCertification  # noqa
 from app.modules.job.models import Job  # noqa
-from app.modules.match.models import MatchRuleConfigModel, MatchRuleDimensionModel, MatchRuleExperimentModel, MatchRuleMatchAuditModel  # noqa
+from app.modules.match.models import (  # noqa
+    IntelligentMatchingEvaluationModel,
+    IntelligentMatchingStrategyModel,
+    MatchRuleConfigModel,
+    MatchRuleDimensionModel,
+    MatchRuleExperimentModel,
+    MatchRuleMatchAuditModel,
+    MatchRuleOperationAuditModel,
+)
 from app.modules.message.models import ContactExchange, Conversation, ConversationMessage  # noqa
 from app.modules.notification.models import Notification, NotificationPushTask  # noqa
 from app.modules.application.models import JobApplication, JobApplicationTimeline  # noqa

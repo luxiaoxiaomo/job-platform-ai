@@ -15,6 +15,8 @@ def import_all_models() -> None:
     from app.modules.company_certification.models import CompanyCertification  # noqa: F401
     from app.modules.job.models import Job, JobFavorite, JobSubscription, JobVisit  # noqa: F401
     from app.modules.match.models import (  # noqa: F401
+        IntelligentMatchingEvaluationModel,
+        IntelligentMatchingStrategyModel,
         MatchRuleConfigModel,
         MatchRuleDimensionModel,
         MatchRuleExperimentModel,

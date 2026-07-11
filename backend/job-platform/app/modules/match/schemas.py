@@ -4,7 +4,7 @@ Rule-based job matching schemas.
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 MatchLevel = Literal["high", "medium", "low"]
@@ -265,6 +265,10 @@ class MatchSourceResponse(BaseModel):
     """Source metadata for the generated match analysis."""
 
     strategy: str = "rule_v1"
+    intelligent_strategy_id: int | None = None
+    match_source: Literal["rule_baseline", "hybrid", "hybrid_degraded"] = "rule_baseline"
+    recall_source: Literal["rule_only", "vector_only", "rule_and_vector"] = "rule_only"
+    degrade_reason: str | None = None
     profile_parse_run_id: int | None = None
     job_id: int
     rule_config_id: int | str | None = None
@@ -361,6 +365,128 @@ class MatchRuleOperationAuditListResponse(BaseModel):
     """Paginated rule operation audit list."""
 
     items: list[MatchRuleOperationAuditResponse] = Field(default_factory=list)
+    total: int
+    skip: int = 0
+    limit: int = 20
+
+
+class IntelligentMatchingVectorRecallRequest(BaseModel):
+    """Vector recall config for an intelligent matching strategy."""
+
+    enabled: bool = False
+    top_n: int = Field(default=100, ge=1, le=500)
+    min_similarity: float = Field(default=0.62, ge=0, le=1)
+    candidate_source: str = "job_resume_profile"
+
+
+class IntelligentMatchingHybridWeightsRequest(BaseModel):
+    """Hybrid scoring weights for an intelligent matching strategy."""
+
+    rule_score: float = Field(default=0.7, ge=0, le=1)
+    vector_score: float = Field(default=0.2, ge=0, le=1)
+    profile_coverage_score: float = Field(default=0.1, ge=0, le=1)
+    behavior_quality_score: float = Field(default=0, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_total_weight(self):
+        total = self.rule_score + self.vector_score + self.profile_coverage_score + self.behavior_quality_score
+        if abs(total - 1.0) > 0.001:
+            raise ValueError("hybrid_weights_total_must_equal_1")
+        return self
+
+
+class IntelligentMatchingStrategyCreateRequest(BaseModel):
+    """Create an intelligent matching strategy draft."""
+
+    name: str = Field(min_length=1, max_length=120)
+    description: str = ""
+    base_rule_config_id: int = Field(gt=0)
+    vector_recall: IntelligentMatchingVectorRecallRequest = Field(default_factory=IntelligentMatchingVectorRecallRequest)
+    hybrid_weights: IntelligentMatchingHybridWeightsRequest = Field(default_factory=IntelligentMatchingHybridWeightsRequest)
+    fallback_policy: Literal["rule_baseline"] = "rule_baseline"
+
+
+class IntelligentMatchingStrategyUpdateRequest(BaseModel):
+    """Update an editable intelligent matching strategy draft."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+    base_rule_config_id: int | None = Field(default=None, gt=0)
+    vector_recall: IntelligentMatchingVectorRecallRequest | None = None
+    hybrid_weights: IntelligentMatchingHybridWeightsRequest | None = None
+    fallback_policy: Literal["rule_baseline"] | None = None
+
+
+class IntelligentMatchingStrategyCloneRequest(BaseModel):
+    """Clone an intelligent strategy into a new draft."""
+
+    name: str = Field(min_length=1, max_length=120)
+    reason: str = Field(default="", max_length=500)
+
+
+class IntelligentMatchingStrategyResponse(BaseModel):
+    """Intelligent strategy API response."""
+
+    id: int
+    name: str
+    description: str
+    status: str
+    base_rule_config_id: int
+    vector_recall: dict[str, Any]
+    hybrid_weights: dict[str, Any]
+    fallback_policy: str
+    created_by: int | None = None
+    updated_by: int | None = None
+    archived_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class IntelligentMatchingEvaluationRunRequest(BaseModel):
+    """Run an offline evaluation for an intelligent strategy."""
+
+    sample_set_id: int = Field(gt=0)
+    sample_source_policy: Literal["allow_real_and_manual_only", "allow_demo_and_mock"] = "allow_real_and_manual_only"
+    sample_source_distribution: dict[str, int] = Field(default_factory=dict)
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+    notes: str = Field(default="", max_length=500)
+
+    @model_validator(mode="after")
+    def validate_sample_distribution(self):
+        allowed_keys = {"real_behavior", "manual_review", "seeded_demo", "mock_only"}
+        if not self.sample_source_distribution:
+            raise ValueError("sample_source_distribution_required")
+        unknown_keys = set(self.sample_source_distribution) - allowed_keys
+        if unknown_keys:
+            raise ValueError("sample_source_distribution_unknown_source")
+        if any(value < 0 for value in self.sample_source_distribution.values()):
+            raise ValueError("sample_source_distribution_must_be_non_negative")
+        if sum(self.sample_source_distribution.values()) <= 0:
+            raise ValueError("sample_set_empty")
+        if self.created_from is not None and self.created_to is not None and self.created_from > self.created_to:
+            raise ValueError("evaluation_time_range_invalid")
+        return self
+
+
+class IntelligentMatchingEvaluationResponse(BaseModel):
+    """Offline evaluation report response."""
+
+    evaluation_id: int
+    strategy_id: int
+    status: str
+    sample_count: int
+    sample_source_distribution: dict[str, int]
+    baseline: dict[str, Any]
+    hybrid: dict[str, Any]
+    decision_status: str
+    risk_notes: list[str] = Field(default_factory=list)
+
+
+class IntelligentMatchingStrategyListResponse(BaseModel):
+    """Paginated intelligent strategy list."""
+
+    items: list[IntelligentMatchingStrategyResponse] = Field(default_factory=list)
     total: int
     skip: int = 0
     limit: int = 20

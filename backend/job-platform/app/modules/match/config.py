@@ -3,7 +3,6 @@ Default rule configuration for rule-based job matching.
 """
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any
 
 
 @dataclass(frozen=True)

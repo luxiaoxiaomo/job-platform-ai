@@ -157,6 +157,144 @@ class MatchRuleOperationAuditModel(Base):
         Index("idx_match_rule_operation_audits_created_at", "created_at"),
     )
 
+INTELLIGENT_STRATEGY_STATUSES = ("draft", "evaluating", "testing", "active", "archived")
+INTELLIGENT_EVALUATION_STATUSES = ("pending", "running", "completed", "failed")
+INTELLIGENT_DECISION_STATUSES = ("insufficient_sample", "demo_only", "eligible_for_gray", "blocked")
+
+
+def _default_vector_recall_config() -> dict:
+    return {
+        "enabled": False,
+        "top_n": 100,
+        "min_similarity": 0.62,
+        "candidate_source": "job_resume_profile",
+    }
+
+
+def _default_hybrid_weights() -> dict:
+    return {
+        "rule_score": 0.7,
+        "vector_score": 0.2,
+        "profile_coverage_score": 0.1,
+        "behavior_quality_score": 0,
+    }
+
+
+def _default_sample_source_distribution() -> dict:
+    return {
+        "real_behavior": 0,
+        "manual_review": 0,
+        "seeded_demo": 0,
+        "mock_only": 0,
+    }
+
+
+class IntelligentMatchingStrategyModel(Base):
+    """Admin-managed intelligent matching strategy draft."""
+
+    __tablename__ = "intelligent_matching_strategies"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Intelligent strategy ID")
+    name = Column(String(120), nullable=False, comment="Strategy display name")
+    description = Column(Text, nullable=False, default="", comment="Strategy description")
+    status = Column(String(30), nullable=False, default="draft", comment="draft/evaluating/testing/active/archived")
+    base_rule_config_id = Column(
+        Integer,
+        ForeignKey("match_rule_configs.id", ondelete="RESTRICT"),
+        nullable=False,
+        comment="Baseline rule config ID",
+    )
+    vector_recall = Column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=_default_vector_recall_config,
+        comment="Vector recall configuration",
+    )
+    hybrid_weights = Column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=_default_hybrid_weights,
+        comment="Hybrid scoring weights",
+    )
+    fallback_policy = Column(String(50), nullable=False, default="rule_baseline", comment="Fallback policy")
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="Creator user ID")
+    updated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="Updater user ID")
+    archived_at = Column(DateTime, nullable=True, comment="Archived at")
+    created_at = Column(DateTime, server_default=func.now(), nullable=False, comment="Created at")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False, comment="Updated at")
+
+    base_rule_config = relationship("MatchRuleConfigModel")
+    creator = relationship("User", foreign_keys=[created_by])
+    updater = relationship("User", foreign_keys=[updated_by])
+    evaluations = relationship(
+        "IntelligentMatchingEvaluationModel",
+        back_populates="strategy",
+        cascade="all, delete-orphan",
+        order_by="IntelligentMatchingEvaluationModel.created_at.desc()",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_intelligent_matching_strategies_name"),
+        Index("idx_intelligent_matching_strategies_status", "status"),
+        Index("idx_intelligent_matching_strategies_base_rule", "base_rule_config_id"),
+        Index("idx_intelligent_matching_strategies_created_at", "created_at"),
+    )
+
+
+class IntelligentMatchingEvaluationModel(Base):
+    """Offline evaluation summary for one intelligent matching strategy."""
+
+    __tablename__ = "intelligent_matching_evaluations"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Intelligent evaluation ID")
+    strategy_id = Column(
+        Integer,
+        ForeignKey("intelligent_matching_strategies.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Intelligent strategy ID",
+    )
+    status = Column(String(30), nullable=False, default="pending", comment="pending/running/completed/failed")
+    sample_count = Column(Integer, nullable=False, default=0, comment="Evaluation sample count")
+    sample_source_distribution = Column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=_default_sample_source_distribution,
+        comment="Sample source distribution",
+    )
+    baseline_metrics = Column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=dict,
+        comment="Baseline metrics summary",
+    )
+    hybrid_metrics = Column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=dict,
+        comment="Hybrid metrics summary",
+    )
+    decision_status = Column(String(40), nullable=False, default="insufficient_sample", comment="Evaluation decision")
+    risk_notes = Column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=list,
+        comment="Evaluation risk notes",
+    )
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="Creator user ID")
+    created_at = Column(DateTime, server_default=func.now(), nullable=False, comment="Created at")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False, comment="Updated at")
+    completed_at = Column(DateTime, nullable=True, comment="Completed at")
+
+    strategy = relationship("IntelligentMatchingStrategyModel", back_populates="evaluations")
+    creator = relationship("User")
+
+    __table_args__ = (
+        Index("idx_intelligent_matching_evaluations_strategy", "strategy_id"),
+        Index("idx_intelligent_matching_evaluations_status", "status"),
+        Index("idx_intelligent_matching_evaluations_decision", "decision_status"),
+        Index("idx_intelligent_matching_evaluations_created_at", "created_at"),
+    )
+
 
 class MatchRuleDimensionModel(Base):
     """One dimension under a match rule config."""
