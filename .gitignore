@@ -62,6 +62,7 @@ goal-*/
 .npm-cache/
 test-results/
 playwright-report/
+.worktrees/
 # Generated product video media
 frontend/product-video/renders/
 frontend/product-video/snapshots/
