@@ -24,6 +24,8 @@ jobs:
     env:
       POETRY_NO_INTERACTION: "1"
       PYTHONUNBUFFERED: "1"
+      # Test-only Fernet key; production keys are supplied by the deployment environment.
+      ENCRYPTION_KEY: "DjMvO5B0ZUlwiBNx2THNP_eW3usmxPaByHxwQJOZEeE="
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

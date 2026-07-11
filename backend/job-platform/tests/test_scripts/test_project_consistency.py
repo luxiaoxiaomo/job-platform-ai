@@ -9,6 +9,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 CHECK_SCRIPT = PROJECT_ROOT / "scripts" / "check_project_consistency.py"
+CI_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
 
 
 def run_consistency_check(root: Path) -> subprocess.CompletedProcess[str]:
@@ -25,6 +26,12 @@ def test_repository_active_ports_are_consistent() -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Project consistency checks passed" in result.stdout
+
+
+def test_backend_ci_provides_a_test_encryption_key() -> None:
+    workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "ENCRYPTION_KEY:" in workflow
 
 
 def test_check_reports_an_incorrect_backend_entrypoint_port(tmp_path: Path) -> None:
