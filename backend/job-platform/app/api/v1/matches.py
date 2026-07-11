@@ -40,6 +40,7 @@ from app.modules.match.schemas import (
     MatchRuleRollbackRequest,
     MatchRuleTemplateCreateRequest,
 )
+from app.modules.match.quality import MatchQualityService
 from app.modules.match.service import MatchService
 from app.modules.match.strategy_writes import IntelligentMatchingStrategyWriteService
 from app.modules.match.writes import MatchRuleWriteService
@@ -422,7 +423,7 @@ async def get_match_quality_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get match quality and downstream behavior metrics for admin operations."""
-    return await MatchService.get_match_quality_summary(
+    return await MatchQualityService.get_summary(
         db,
         experiment_id=experiment_id,
         rule_config_id=rule_config_id,
