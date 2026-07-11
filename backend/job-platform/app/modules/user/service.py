@@ -1,7 +1,10 @@
 """
 User Service - 业务逻辑层
 """
+import logging
 from typing import Tuple
+
+from cryptography.fernet import InvalidToken
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +14,8 @@ from app.modules.user.repository import UserRepository
 from app.core.security import hash_password, verify_password, create_access_token
 from app.utils.encryption import encryptor
 from app.utils.phone_hash import hash_phone
+
+logger = logging.getLogger(__name__)
 
 
 class UserService:
@@ -136,9 +141,18 @@ class UserService:
 
     @staticmethod
     def to_response(user: User) -> UserResponse:
+        try:
+            phone = encryptor.decrypt(user.phone_encrypted)
+        except InvalidToken:
+            logger.warning(
+                "user phone ciphertext cannot be decrypted with the active key",
+                extra={"context": {"user_id": user.id, "role": user.role}},
+            )
+            phone = "手机号不可用"
+
         return UserResponse(
             id=user.id,
-            phone=encryptor.decrypt(user.phone_encrypted),
+            phone=phone,
             display_name=user.display_name,
             role=user.role,
             avatar_url=user.avatar_url,

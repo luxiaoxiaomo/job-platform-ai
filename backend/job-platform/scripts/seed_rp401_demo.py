@@ -82,6 +82,7 @@ async def get_or_create_user(session, *, phone: str, role: str, display_name: st
     result = await session.execute(select(User).where(User.phone_hash == hash_phone(phone)))
     user = result.scalar_one_or_none()
     if user:
+        user.phone_encrypted = encryptor.encrypt(phone)
         user.role = role
         user.display_name = display_name
         user.status = "active"
@@ -160,7 +161,7 @@ async def seed() -> dict:
     assert_demo_environment()
     async with AsyncSessionLocal() as session:
         await cleanup_previous_demo(session)
-        admin = await get_or_create_user(
+        await get_or_create_user(
             session,
             phone=ADMIN_PHONE,
             role="admin",

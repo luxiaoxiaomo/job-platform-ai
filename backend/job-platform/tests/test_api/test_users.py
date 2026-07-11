@@ -3,6 +3,7 @@
 """
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 
 class TestUsers:
@@ -193,6 +194,14 @@ class TestUsers:
         from app.utils.encryption import encryptor
         from app.utils.phone_hash import hash_phone
 
+        recruiter = (
+            await db_session.execute(
+                select(User).where(User.phone_hash == hash_phone(test_recruiter_data["phone"]))
+            )
+        ).scalar_one()
+        recruiter.phone_encrypted = "ciphertext-from-an-old-key"
+        await db_session.commit()
+
         admin_phone = "13700137001"
         admin = User(
             phone_hash=hash_phone(admin_phone),
@@ -232,3 +241,4 @@ class TestUsers:
         assert recruiter_response.status_code == 200
         assert recruiter_response.json()["total"] == 1
         assert recruiter_response.json()["items"][0]["role"] == "recruiter"
+        assert recruiter_response.json()["items"][0]["phone"] == "手机号不可用"
