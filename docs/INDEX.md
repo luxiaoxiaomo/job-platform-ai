@@ -13,6 +13,11 @@ docs/
 ├── architecture/             # 架构与设计
 ├── resume-foundation/        # 简历解析底座（P2）
 ├── p3-match/                 # 人岗匹配与规则配置（P3）
+├── p4-intelligent-matching/  # 智能匹配（P4）
+├── acceptance/               # 本地联调与业务验收
+├── audit/                    # 上线前技术体检
+├── demo/                     # 演示环境与样例数据
+├── operations/               # 运营治理流程
 ├── collaboration/            # 多 AI 协作机制
 └── archive/                  # 历史归档（旧联调报告、原始记录、原型文件）
 ```
@@ -66,10 +71,27 @@ docs/
 
 | 文档 | 说明 |
 | --- | --- |
-| [P3_人岗匹配与规则配置协作计划.md](./p3-match/P3_人岗匹配与规则配置协作计划.md) | **P3 总纲** |
-| [R-P3-01_人岗匹配规则版协作说明.md](./p3-match/R-P3-01_人岗匹配规则版协作说明.md) | 规则版匹配 API 起点 |
-| [R-P3-03_匹配规则配置化协作计划.md](./p3-match/R-P3-03_匹配规则配置化协作计划.md) | 配置结构与解释字段 |
-| [R-P3-04_规则配置落库与只读管理页协作计划.md](./p3-match/R-P3-04_规则配置落库与只读管理页协作计划.md) | 规则落库 + 只读管理页 |
+| [P3_人岗匹配与规则配置产品化收尾.md](./p3-match/P3_人岗匹配与规则配置产品化收尾.md) | P3 完成范围与剩余边界 |
+| [P3_人岗匹配与规则配置协作计划.md](./p3-match/P3_人岗匹配与规则配置协作计划.md) | P3 总纲 |
+| [R-P3-10_匹配质量运营看板_PRD.md](./p3-match/R-P3-10_匹配质量运营看板_PRD.md) | Match Quality 管理端能力 |
+| [R-P4-01_Match_Quality_P1_分层质量分析与调优建议_PRD.md](./p3-match/R-P4-01_Match_Quality_P1_分层质量分析与调优建议_PRD.md) | 分层质量分析与调优建议 |
+
+## p4-intelligent-matching/ — 智能匹配（P4）
+
+| 文档 | 说明 |
+| --- | --- |
+| [P4_智能匹配_MVP_PRD.md](./p4-intelligent-matching/P4_智能匹配_MVP_PRD.md) | P4 产品范围与业务边界 |
+| [P4_智能匹配_接口契约与算法边界.md](./p4-intelligent-matching/P4_智能匹配_接口契约与算法边界.md) | API、评分和降级边界 |
+| [P4_智能匹配_代码实现入口计划.md](./p4-intelligent-matching/P4_智能匹配_代码实现入口计划.md) | 当前实现入口 |
+| [P4_智能匹配_手动测试指南.md](./p4-intelligent-matching/P4_智能匹配_手动测试指南.md) | 策略、评估、管理端与运行时验收 |
+| [P4_人岗匹配评分模型_v0.2_PRD_技术方案.md](./p4-intelligent-matching/P4_人岗匹配评分模型_v0.2_PRD_技术方案.md) | 评分模型技术方案 |
+
+## acceptance/ — 验收
+
+| 文档 | 说明 |
+| --- | --- |
+| [本地联调测试手册_2026-06-29.md](./acceptance/本地联调测试手册_2026-06-29.md) | 当前本地启动、账号和主要业务流程 |
+| [核心业务闭环验收_空岗发布平台.md](./acceptance/核心业务闭环验收_空岗发布平台.md) | 核心业务闭环验收范围 |
 
 ## collaboration/ — 多 AI 协作机制
 
@@ -91,6 +113,8 @@ docs/
 
 ## 当前阶段
 
-- **进行中**：P3 — 真实画像 + 真实岗位 + 可解释匹配 + 可配置规则
-- **下一步**：R-P3-04 联调 → R-P3-05 规则编辑与版本生成
+- **已完成基线**：P3 规则配置、实验、审计、发布治理和 Match Quality。
+- **当前状态**：P4 策略管理、离线评估、运行时智能评分、本地 `local_profile_text` provider 和管理端页面已完成本地验证。
+- **运行时边界**：存在 `active` 智能策略时启用智能评分；否则使用规则基线。当前管理 API/UI 不提供正式激活/发布治理。
+- **下一步**：生产级外部向量 provider、实验 treatment 绑定、生产 E2E 与上线治理。
 - **真相源**：[`HANDOFF.json`](./HANDOFF.json)

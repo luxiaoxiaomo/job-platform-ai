@@ -267,6 +267,17 @@ P0 可能新增的数据概念：
 - denominator: 无。
 - data source: rule match result, vector similarity, structured profile coverage, quality metrics。
 - refresh cadence: 请求时或离线评估时计算。
+
+`三维主分兼容`:
+
+P4 不另起一套与既有三维评分冲突的模型。人岗匹配主分仍以 `semantic_score/tag_score/keyword_score` 为基础：
+
+```text
+base_match_score = semantic_score * 0.50 + tag_score * 0.30 + keyword_score * 0.20
+final_hybrid_score = base_match_score * 0.85 + profile_coverage_score * 0.05 + behavior_quality_score * 0.10
+```
+
+其中 `profile_coverage_score` 表示画像完整度和分数可信度，不能单独说明候选人与岗位匹配；`behavior_quality_score` 表示真实行为反馈质量，P0 默认 0，待查看、收藏、沟通、面试、录用等样本足够后再开放权重。强约束字段仍优先于总分。
 - caveats: P0 权重必须可解释，不允许黑盒模型覆盖规则分。
 
 `degrade_rate`:
