@@ -25,14 +25,13 @@ import {
   logout,
   runAdminNotificationPushWorker,
   updateAdminNotificationPushTaskStatus,
-  createTagLibraryItem,
-  createStandardPosition,
   listTagLibraryItems,
   listBaseDataOperationLogs,
   listStandardPositions,
   updateTagLibraryItem,
   updateStandardPosition,
 } from '../services/index.js'
+import { StandardPositionDrawer, TagLibraryDrawer } from './AdminBaseDataDrawers.jsx'
 import '../styles/admin.css'
 
 const NAV = [
@@ -1202,28 +1201,12 @@ export function BaseData({ section = 'overview', setPage }) {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({
-    name: '',
-    category: '',
-    aliasesText: '',
-    description: '',
-    status: 'active',
-  })
+  const [positionDrawer, setPositionDrawer] = useState(null)
   const [tags, setTags] = useState([])
   const [tagTotal, setTagTotal] = useState(0)
   const [tagLoading, setTagLoading] = useState(true)
   const [tagError, setTagError] = useState('')
-  const [editingTagId, setEditingTagId] = useState(null)
-  const [tagForm, setTagForm] = useState({
-    name: '',
-    category: '',
-    parentId: '',
-    color: '',
-    description: '',
-    sortOrder: 0,
-    status: 'active',
-  })
+  const [tagDrawer, setTagDrawer] = useState(null)
 
   const loadPositions = async () => {
     try {
@@ -1275,56 +1258,6 @@ export function BaseData({ section = 'overview', setPage }) {
     loadTags()
   }, [])
 
-  const resetForm = () => {
-    setEditingId(null)
-    setForm({
-      name: '',
-      category: '',
-      aliasesText: '',
-      description: '',
-      status: 'active',
-    })
-  }
-
-  const editPosition = (position) => {
-    setEditingId(position.id)
-    setForm({
-      name: position.name || '',
-      category: position.category || '',
-      aliasesText: (position.aliases || []).join(', '),
-      description: position.description || '',
-      status: position.status || 'active',
-    })
-  }
-
-  const savePosition = async () => {
-    const payload = {
-      name: form.name.trim(),
-      category: form.category.trim(),
-      aliases: form.aliasesText.split(',').map(item => item.trim()).filter(Boolean),
-      description: form.description.trim() || null,
-      status: form.status,
-    }
-    if (!payload.name || !payload.category) {
-      toast('请填写标准名称和分类')
-      return
-    }
-
-    try {
-      if (editingId) {
-        await updateStandardPosition(editingId, payload)
-        toast('标准职位已更新')
-      } else {
-        await createStandardPosition(payload)
-        toast('标准职位已新增')
-      }
-      resetForm()
-      await loadPositions()
-    } catch (err) {
-      toast(err.message || '保存标准职位失败')
-    }
-  }
-
   const toggleStatus = async (position) => {
     const nextStatus = position.status === 'active' ? 'inactive' : 'active'
     try {
@@ -1333,62 +1266,6 @@ export function BaseData({ section = 'overview', setPage }) {
       await loadPositions()
     } catch (err) {
       toast(err.message || '更新状态失败')
-    }
-  }
-
-  const resetTagForm = () => {
-    setEditingTagId(null)
-    setTagForm({
-      name: '',
-      category: '',
-      parentId: '',
-      color: '',
-      description: '',
-      sortOrder: 0,
-      status: 'active',
-    })
-  }
-
-  const editTag = (tag) => {
-    setEditingTagId(tag.id)
-    setTagForm({
-      name: tag.name || '',
-      category: tag.category || '',
-      parentId: tag.parent_id ? String(tag.parent_id) : '',
-      color: tag.color || '',
-      description: tag.description || '',
-      sortOrder: tag.sort_order || 0,
-      status: tag.status || 'active',
-    })
-  }
-
-  const saveTag = async () => {
-    const payload = {
-      name: tagForm.name.trim(),
-      category: tagForm.category.trim(),
-      parent_id: tagForm.parentId ? Number(tagForm.parentId) : null,
-      color: tagForm.color.trim() || null,
-      description: tagForm.description.trim() || null,
-      sort_order: Number(tagForm.sortOrder) || 0,
-      status: tagForm.status,
-    }
-    if (!payload.name || !payload.category) {
-      toast('请填写标签名称和分类')
-      return
-    }
-
-    try {
-      if (editingTagId) {
-        await updateTagLibraryItem(editingTagId, payload)
-        toast('标签已更新')
-      } else {
-        await createTagLibraryItem(payload)
-        toast('标签已新增')
-      }
-      resetTagForm()
-      await loadTags()
-    } catch (err) {
-      toast(err.message || '保存标签失败')
     }
   }
 
@@ -1404,6 +1281,18 @@ export function BaseData({ section = 'overview', setPage }) {
   }
 
   const tagNameById = new Map(tags.map(tag => [tag.id, tag.name]))
+
+  const handlePositionSaved = async (_saved, mode) => {
+    setPositionDrawer(null)
+    toast(mode === 'edit' ? '标准职位已更新' : '标准职位已新增')
+    await loadPositions()
+  }
+
+  const handleTagSaved = async (_saved, mode) => {
+    setTagDrawer(null)
+    toast(mode === 'edit' ? '标签已更新' : '标签已新增')
+    await loadTags()
+  }
 
   const ruleSection = (
     <div className="admin-card" style={{ marginBottom: 20 }}>
@@ -1437,44 +1326,15 @@ export function BaseData({ section = 'overview', setPage }) {
   )
 
   const positionsSection = (
-    <div className="admin-card">
+    <>
+      <div className="admin-card">
       <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
         <span>🗂 标准职位库</span>
-        <span style={{ color: 'var(--a-text-2)', fontSize: 13 }}>共 {total} 条</span>
+        <div className="row" style={{ gap: 10, marginLeft: 'auto' }}>
+          <span style={{ color: 'var(--a-text-2)', fontSize: 13 }}>共 {total} 条</span>
+          <button type="button" className="a-btn sm primary" onClick={() => setPositionDrawer({ mode: 'create' })}>新增标准职位</button>
+        </div>
       </div>
-      <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        <input
-          value={form.name}
-          onChange={e => setForm({ ...form, name: e.target.value })}
-          placeholder="标准名称"
-          style={{ minWidth: 160, flex: '1 1 160px' }}
-        />
-        <input
-          value={form.category}
-          onChange={e => setForm({ ...form, category: e.target.value })}
-          placeholder="分类"
-          style={{ minWidth: 140, flex: '1 1 140px' }}
-        />
-        <input
-          value={form.aliasesText}
-          onChange={e => setForm({ ...form, aliasesText: e.target.value })}
-          placeholder="别名，用逗号分隔"
-          style={{ minWidth: 240, flex: '2 1 240px' }}
-        />
-        <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-          <option value="active">启用</option>
-          <option value="inactive">停用</option>
-        </select>
-        <span className="a-btn sm primary" onClick={savePosition}>{editingId ? '保存' : '新增职位'}</span>
-        {editingId && <span className="a-btn sm" onClick={resetForm}>取消</span>}
-      </div>
-      <textarea
-        value={form.description}
-        onChange={e => setForm({ ...form, description: e.target.value })}
-        placeholder="说明（可选）"
-        rows={2}
-        style={{ width: '100%', marginBottom: 12, resize: 'vertical' }}
-      />
       {error && <div style={{ color: '#dc2626', marginBottom: 12 }}>{error}</div>}
       <table className="admin-table">
         <thead><tr><th>标准名称</th><th>分类</th><th>别名（AI 标准化映射）</th><th>状态</th><th>操作</th></tr></thead>
@@ -1489,7 +1349,7 @@ export function BaseData({ section = 'overview', setPage }) {
               <td><span className={`a-tag ${position.status === 'active' ? 'pass' : 'gray'}`}>{position.status === 'active' ? '启用' : '停用'}</span></td>
               <td>
                 <span className="a-btn sm" onClick={() => navigate(`/admin/standard-positions/${position.id}`)}>查看详情</span>{' '}
-                <span className="a-btn sm" onClick={() => editPosition(position)}>编辑</span>{' '}
+                <span className="a-btn sm" onClick={() => setPositionDrawer({ mode: 'edit', itemId: position.id })}>编辑</span>{' '}
                 <span className="a-btn sm" onClick={() => toggleStatus(position)}>{position.status === 'active' ? '停用' : '启用'}</span>
               </td>
             </tr>
@@ -1498,66 +1358,27 @@ export function BaseData({ section = 'overview', setPage }) {
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+      <StandardPositionDrawer
+        open={Boolean(positionDrawer)}
+        mode={positionDrawer?.mode}
+        itemId={positionDrawer?.itemId}
+        onClose={() => setPositionDrawer(null)}
+        onSaved={handlePositionSaved}
+      />
+    </>
   )
 
   const tagsSection = (
-    <div className="admin-card" style={{ marginTop: section === 'overview' ? 20 : 0 }}>
+    <>
+      <div className="admin-card" style={{ marginTop: section === 'overview' ? 20 : 0 }}>
       <div className="ac-title row" style={{ justifyContent: 'space-between' }}>
         <span>🏷 标签库</span>
-        <span style={{ color: 'var(--a-text-2)', fontSize: 13 }}>共 {tagTotal} 条</span>
+        <div className="row" style={{ gap: 10, marginLeft: 'auto' }}>
+          <span style={{ color: 'var(--a-text-2)', fontSize: 13 }}>共 {tagTotal} 条</span>
+          <button type="button" className="a-btn sm primary" onClick={() => setTagDrawer({ mode: 'create' })}>新增标签</button>
+        </div>
       </div>
-      <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        <input
-          value={tagForm.name}
-          onChange={e => setTagForm({ ...tagForm, name: e.target.value })}
-          placeholder="标签名称"
-          style={{ minWidth: 140, flex: '1 1 140px' }}
-        />
-        <input
-          value={tagForm.category}
-          onChange={e => setTagForm({ ...tagForm, category: e.target.value })}
-          placeholder="分类，如 skill / industry"
-          style={{ minWidth: 180, flex: '1 1 180px' }}
-        />
-        <select
-          value={tagForm.parentId}
-          onChange={e => setTagForm({ ...tagForm, parentId: e.target.value })}
-          style={{ minWidth: 160 }}
-        >
-          <option value="">无父级</option>
-          {tags.filter(tag => tag.id !== editingTagId).map(tag => (
-            <option key={tag.id} value={tag.id}>{tag.category} / {tag.name}</option>
-          ))}
-        </select>
-        <input
-          value={tagForm.color}
-          onChange={e => setTagForm({ ...tagForm, color: e.target.value })}
-          placeholder="#2563eb"
-          style={{ width: 110 }}
-        />
-        <input
-          type="number"
-          min="0"
-          value={tagForm.sortOrder}
-          onChange={e => setTagForm({ ...tagForm, sortOrder: e.target.value })}
-          placeholder="排序"
-          style={{ width: 90 }}
-        />
-        <select value={tagForm.status} onChange={e => setTagForm({ ...tagForm, status: e.target.value })}>
-          <option value="active">启用</option>
-          <option value="inactive">停用</option>
-        </select>
-        <span className="a-btn sm primary" onClick={saveTag}>{editingTagId ? '保存' : '新增标签'}</span>
-        {editingTagId && <span className="a-btn sm" onClick={resetTagForm}>取消</span>}
-      </div>
-      <textarea
-        value={tagForm.description}
-        onChange={e => setTagForm({ ...tagForm, description: e.target.value })}
-        placeholder="说明（可选）"
-        rows={2}
-        style={{ width: '100%', marginBottom: 12, resize: 'vertical' }}
-      />
       {tagError && <div style={{ color: '#dc2626', marginBottom: 12 }}>{tagError}</div>}
       <table className="admin-table">
         <thead><tr><th>标签</th><th>分类</th><th>父级</th><th>颜色</th><th>排序</th><th>状态</th><th>操作</th></tr></thead>
@@ -1581,7 +1402,7 @@ export function BaseData({ section = 'overview', setPage }) {
               <td><span className={`a-tag ${tag.status === 'active' ? 'pass' : 'gray'}`}>{tag.status === 'active' ? '启用' : '停用'}</span></td>
               <td>
                 <span className="a-btn sm" onClick={() => navigate(`/admin/tags/${tag.id}`)}>查看详情</span>{' '}
-                <span className="a-btn sm" onClick={() => editTag(tag)}>编辑</span>{' '}
+                <span className="a-btn sm" onClick={() => setTagDrawer({ mode: 'edit', itemId: tag.id })}>编辑</span>{' '}
                 <span className="a-btn sm" onClick={() => toggleTagStatus(tag)}>{tag.status === 'active' ? '停用' : '启用'}</span>
               </td>
             </tr>
@@ -1590,7 +1411,16 @@ export function BaseData({ section = 'overview', setPage }) {
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+      <TagLibraryDrawer
+        open={Boolean(tagDrawer)}
+        mode={tagDrawer?.mode}
+        itemId={tagDrawer?.itemId}
+        tags={tags}
+        onClose={() => setTagDrawer(null)}
+        onSaved={handleTagSaved}
+      />
+    </>
   )
 
   if (section === 'positions') return positionsSection
