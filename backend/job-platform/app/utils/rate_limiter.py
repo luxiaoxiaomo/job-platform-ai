@@ -1,7 +1,6 @@
 """
 限流工具：基于Redis的频率限制
 """
-from typing import Optional
 from app.utils.redis_client import redis_client
 
 

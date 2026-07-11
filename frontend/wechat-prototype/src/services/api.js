@@ -2,7 +2,8 @@
  * API Client - 统一请求封装
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8003'
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8003'
+export const API_BASE_URL = rawApiBaseUrl.replace('://localhost', '://127.0.0.1')
 
 /**
  * 统一请求方法
@@ -11,15 +12,16 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
  * @returns {Promise<any>} 响应数据
  */
 export async function request(endpoint, options = {}) {
+  const { skipAuthRedirect = false, ...requestOptions } = options
   const token = localStorage.getItem('access_token')
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+  const isFormData = typeof FormData !== 'undefined' && requestOptions.body instanceof FormData
 
   const config = {
-    ...options,
+    ...requestOptions,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers,
+      ...requestOptions.headers,
     },
   }
 
@@ -28,6 +30,10 @@ export async function request(endpoint, options = {}) {
 
     // 401 未授权 - 清除token并跳转登录
     if (response.status === 401) {
+      const error = await response.json().catch(() => ({}))
+      if (skipAuthRedirect) {
+        throw new Error(error.detail || error.message || '未授权，请重新登录')
+      }
       localStorage.removeItem('access_token')
       localStorage.removeItem('user_info')
       // 支持HashRouter
@@ -66,8 +72,9 @@ export async function get(endpoint, params = {}) {
 /**
  * POST请求
  */
-export async function post(endpoint, data) {
+export async function post(endpoint, data, options = {}) {
   return request(endpoint, {
+    ...options,
     method: 'POST',
     body: JSON.stringify(data),
   })
@@ -98,4 +105,15 @@ export async function put(endpoint, data) {
  */
 export async function del(endpoint) {
   return request(endpoint, { method: 'DELETE' })
+}
+
+
+/**
+ * PATCH??
+ */
+export async function patch(endpoint, data) {
+  return request(endpoint, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 }

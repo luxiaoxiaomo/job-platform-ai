@@ -1,0 +1,254 @@
+{
+    "schema_version":  1,
+    "last_updated_by":  "codex",
+    "last_updated_at":  "2026-07-10T21:05:56+08:00",
+    "current_focus":  "The minimal GitHub Actions CI baseline is implemented and locally validated: Poetry lock, Ruff, Alembic single-head, full backend tests, npm ci, frontend production build, active port/config consistency, and clean-worktree gates. P4 intelligent matching strategy management, offline evaluation, runtime scoring integration, local `local_profile_text` provider, and frontend management UI remain implemented and locally validated. The current management API/UI still does not provide formal activation, publish, rollback, or production launch governance. Remaining work is frontend ESLint/Vitest, production configuration/logging hardening, large-file refactoring, production-grade external vector integration, experiment treatment binding, production evidence, monitoring, and launch governance.",
+    "protocol_doc":  "docs/collaboration/AI协作机制_自动推进协议.md",
+    "memory_handoff_doc":  "docs/collaboration/项目记忆与交接机制.md",
+    "kanban_doc":  "docs/resume-foundation/简历解析底座_协作看板.md",
+    "tasks":  [
+                  {
+                      "id":  "P3-baseline",
+                      "owner":  "both",
+                      "role":  "baseline",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "P3 R-P3-01 through R-P3-10, productization wrap-up, rule config/version/experiment/release/audit/quality dashboard, and collaboration baseline are complete.",
+                      "docs":  [
+                                   "docs/p3-match/P3_人岗匹配与规则配置产品化收尾.md",
+                                   "docs/p3-match/P3_人岗匹配与规则配置协作计划.md"
+                               ],
+                      "verification":  [
+                                           "Historical HANDOFF entries recorded backend tests, frontend build, migrations, and browser acceptance for P3 milestones.",
+                                           "P3 is treated as completed baseline for future P4 planning."
+                                       ]
+                  },
+                  {
+                      "id":  "R-P4-01",
+                      "owner":  "codex",
+                      "role":  "feature",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "Match Quality P1 is implemented: quality summary returns segment rollups, anomaly hints, tuning suggestion drafts, and experiment confidence; react-admin Match Quality page displays enhanced filters and outputs.",
+                      "contract_doc":  "docs/p3-match/R-P4-01_Match_Quality_P1_分层质量分析与调优建议_PRD.md",
+                      "verification":  [
+                                           ".\\.venv\\Scripts\\pytest.exe -q tests\\test_api\\test_matches.py =\u003e 27 passed",
+                                           "npm.cmd run build =\u003e passed with existing chunk-size warning only",
+                                           "node frontend/wechat-prototype/output/playwright/manual-rp401-match-quality-p1-flow.cjs =\u003e ok",
+                                           "browser flow =\u003e output/playwright/rp401-quality-segments.png, output/playwright/rp401-quality-anomalies-suggestions.png"
+                                       ]
+                  },
+                  {
+                      "id":  "goal-001",
+                      "owner":  "codex",
+                      "role":  "planning-audit-handoff",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "G1-G7 completion package is done: P4 intelligent matching PRD, interface/algorithm boundary, task package, core-loop dry-run acceptance, Match Quality tuning workflow, pre-release technical audit, base-data/tag governance, demo/sample-data plan, and project memory/handoff workflow.",
+                      "goal_dir":  "goal-001",
+                      "deliverables":  [
+                                           "docs/p4-intelligent-matching/P4_智能匹配_MVP_PRD.md",
+                                           "docs/p4-intelligent-matching/P4_智能匹配_接口契约与算法边界.md",
+                                           "docs/p4-intelligent-matching/P4_智能匹配_任务包.md",
+                                           "docs/acceptance/核心业务闭环验收_空岗发布平台.md",
+                                           "docs/p4-intelligent-matching/匹配质量调优闭环_运营流程.md",
+                                           "docs/audit/上线前技术体检_空岗发布平台.md",
+                                           "docs/operations/基础数据与标签治理流程.md",
+                                           "docs/demo/演示环境与样例数据方案.md",
+                                           "docs/collaboration/项目记忆与交接机制.md"
+                                       ],
+                      "verification":  [
+                                           "Selected backend API tests passed: matches 27, jobs 20, applications 11, messages 13, base_data 12.",
+                                           "Frontend build passed with existing Vite chunk-size warning only.",
+                                           "Alembic current and heads both reported c8d0e2f4g608 (head).",
+                                           "T003-T011 document reviews and placeholder scans passed.",
+                                           "AhaDiff MCP is available but has no local runs/cards/concepts; ahadiff CLI is not on PowerShell PATH."
+                                       ],
+                      "known_residual_risks":  [
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Live 12-step browser E2E has not been executed as a single script; T006 is a dry-run acceptance record and T010 defines the demo plan."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "RP401 seed covers deterministic Match Quality outputs but not full company/resume/contact-exchange flow."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Demo credentials must remain local/demo-only and must not be reused for production."
+                                                   },
+                                                   {
+                                                       "severity":  "P3",
+                                                       "item":  "Frontend build still reports Vite chunk-size warnings."
+                                                   }
+                                               ]
+                  },
+                  {
+                      "id":  "goal-002",
+                      "owner":  "codex",
+                      "role":  "p2-gap-repair-validation",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "P2 residual gaps from goal-001 were repaired and validated: live 12-step E2E script and manifest, structured contact exchange reread/visibility, RP401 Match Quality-only boundary, local/demo credential governance, focused backend tests, RP401 acceptance, and live E2E runtime artifacts.",
+                      "goal_dir":  "goal-002",
+                      "deliverables":  [
+                                           "frontend/wechat-prototype/output/playwright/manual-live-12-step-e2e.cjs",
+                                           "frontend/wechat-prototype/output/playwright/verify-live-12-step-script.cjs",
+                                           "frontend/wechat-prototype/output/playwright/verify-rp401-demo-governance.cjs",
+                                           "backend/job-platform/scripts/seed_rp401_demo.py",
+                                           "frontend/wechat-prototype/output/playwright/manual-rp401-demo-acceptance.cjs",
+                                           "frontend/wechat-prototype/output/playwright/rp401-demo-seed.json",
+                                           "frontend/wechat-prototype/output/playwright/manual-live-12-step-e2e-manifest-live-12-step-2026-06-23T09-01-39-803Z.json",
+                                           "frontend/wechat-prototype/output/playwright/manual-live-12-step-match-quality-live-12-step-2026-06-23T09-01-39-803Z.png",
+                                           "frontend/wechat-prototype/output/playwright/rp401-demo-quality-insights.png",
+                                           "frontend/wechat-prototype/output/playwright/rp401-demo-risk-city-filter.png"
+                                       ],
+                      "verification":  [
+                                           "node frontend/wechat-prototype/output/playwright/verify-live-12-step-script.cjs =\u003e {\"ok\":true,\"script\":\"manual-live-12-step-e2e.cjs\",\"recorded_steps\":12}",
+                                           "node frontend/wechat-prototype/output/playwright/verify-rp401-demo-governance.cjs =\u003e {\"ok\":true,\"seed_manifest_checked\":true}",
+                                           ".\\.venv\\Scripts\\pytest.exe tests\\test_api\\test_business_loop.py tests\\test_api\\test_messages.py -q =\u003e 14 passed, 1 pytest cache warning",
+                                           ".\\.venv\\Scripts\\python.exe -m alembic current / heads =\u003e c8d0e2f4g608 (head)",
+                                           ".\\.venv\\Scripts\\python.exe scripts\\seed_rp401_demo.py =\u003e seeded RP401 demo with demo_boundary MATCH_QUALITY_ONLY / LOCAL_DEMO_ONLY",
+                                           "node frontend/wechat-prototype/output/playwright/manual-rp401-demo-acceptance.cjs =\u003e ok, screenshots rp401-demo-quality-insights.png and rp401-demo-risk-city-filter.png",
+                                           "node frontend/wechat-prototype/output/playwright/manual-live-12-step-e2e.cjs =\u003e ok, 12 real API-backed steps, manifest and Match Quality screenshot generated"
+                                       ],
+                      "known_residual_risks":  [
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Runtime evidence was collected against local/demo services and generated demo records; it is not production evidence."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "RP401 seed remains Match Quality-only by design and is explicitly marked NOT_FULL_BUSINESS_LOOP_EVIDENCE."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Demo credentials remain fixed local/demo credentials and must not be reused for production."
+                                                   },
+                                                   {
+                                                       "severity":  "P3",
+                                                       "item":  "Frontend build still has the historical Vite chunk-size warning; not re-run in goal-002 because app source was not changed."
+                                                   }
+                                               ]
+                  },
+                  {
+                      "id":  "P4-intelligent-matching-implementation",
+                      "owner":  "codex",
+                      "role":  "backend-feature",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "P4 intelligent matching backend slices BE-P4-01/02/03, narrowed BE-P4-06 runtime scoring integration, and local FE-P4 management UI are implemented and locally validated: strategy/evaluation persistence, admin strategy management API, offline evaluation run/report API, archived base-rule rejection, migration state at d9e1f2a3b409, active intelligent strategy execution from runtime seeker/recruiter matching, auditable scoring snapshots, vector-unavailable fallback to rule_baseline, react-admin strategy list/detail/create/edit/clone/evaluation flow, and full matches API regression. Local deterministic vector provider `local_profile_text` is integrated for controlled runtime scoring. Production-grade external vector recall/vector score integration, experiment treatment binding, production evidence, and launch governance remain future work.",
+                      "docs":  [
+                                   "docs/p4-intelligent-matching/P4_智能匹配_MVP_PRD.md",
+                                   "docs/p4-intelligent-matching/P4_智能匹配_接口契约与算法边界.md",
+                                   "docs/p4-intelligent-matching/P4_智能匹配_任务包.md",
+                                   "docs/p4-intelligent-matching/P4_智能匹配_代码实现入口计划.md",
+                                   "docs/p4-intelligent-matching/P4_智能匹配_原型设计与落地方案.md",
+                                   "docs/p4-intelligent-matching/P4_智能匹配_手动测试指南.md"
+                               ],
+                      "verification":  [
+                                           "goal-003 T003R: strategy create/update rejects archived base_rule_config_id; strategy detail contract narrowed to current item-shaped backend response.",
+                                           "alembic upgrade head =\u003e Running upgrade c8d0e2f4g608 -\u003e d9e1f2a3b409, add intelligent matching strategy tables",
+                                           "alembic current =\u003e d9e1f2a3b409 (head)",
+                                           "alembic heads =\u003e d9e1f2a3b409 (head)",
+                                           ".\\backend\\job-platform\\.venv\\Scripts\\pytest.exe backend\\job-platform\\tests\\test_api\\test_intelligent_matching_strategies.py -q =\u003e 9 passed in 8.08s",
+                                           ".\\backend\\job-platform\\.venv\\Scripts\\pytest.exe backend\\job-platform\\tests\\test_api\\test_matches.py -q =\u003e 27 passed in 41.07s",
+                                           "2026-06-27 BE-P4-06 narrowed runtime validation: uv run pytest tests\\test_modules\\test_intelligent_scoring_service.py -q =\u003e 6 passed",
+                                           "2026-06-27 BE-P4-06 narrowed runtime validation: uv run pytest tests\\test_api\\test_matches.py -q -k \"active_intelligent_strategy\" =\u003e 2 passed, 27 deselected",
+                                           "2026-06-27 BE-P4-06 narrowed runtime validation: uv run pytest tests\\test_api\\test_matches.py -q =\u003e 29 passed",
+                                           "2026-06-27 BE-P4-06 narrowed runtime validation: uv run pytest tests\\test_api\\test_intelligent_matching_strategies.py -q =\u003e 9 passed",
+                                           "Full audit after T003R-T005 =\u003e PASS; T006 documentation sync reviewed via HANDOFF/P4 doc diff and JSON parse.",
+                                           "2026-06-27 T007 final closure audit: .\\.venv\\Scripts\\pytest.exe tests\\test_modules\\test_intelligent_scoring_service.py -q =\u003e 6 passed",
+                                           "2026-06-27 T007 final closure audit: .\\.venv\\Scripts\\pytest.exe tests\\test_api\\test_matches.py -q -k \"active_intelligent_strategy\" =\u003e 2 passed, 27 deselected",
+                                           "2026-06-27 T007 final closure audit: .\\.venv\\Scripts\\pytest.exe tests\\test_api\\test_intelligent_matching_strategies.py -q =\u003e 9 passed",
+                                           "2026-06-27 T007 final closure audit: .\\.venv\\Scripts\\pytest.exe tests\\test_api\\test_matches.py -q =\u003e 29 passed",
+                                           "2026-06-29 FE-P4 local static validation: node frontend/wechat-prototype/output/playwright/verify-p4-intelligent-admin-static.cjs =\u003e {\"ok\":true,\"resource\":\"intelligent-strategies\"}",
+                                           "2026-06-29 FE-P4 browser acceptance: node frontend/wechat-prototype/output/playwright/manual-p4-intelligent-admin-flow.cjs =\u003e {\"ok\":true,\"screenshots\":[\"p4-intelligent-admin-list.png\",\"p4-intelligent-admin-evaluation.png\",\"p4-intelligent-admin-edit.png\"]}",
+                                           "2026-06-29 FE-P4 frontend build: npm.cmd run build =\u003e passed with existing Vite chunk-size warning only",
+                                           "2026-06-29 BE-P4-vector local provider validation: .\\.venv\\Scripts\\pytest.exe tests\\test_modules\\test_intelligent_scoring_service.py tests\\test_modules\\test_vector_recall_provider.py tests\\test_api\\test_matches.py -q =\u003e 38 passed, 1 pytest cache warning",
+                                             "2026-07-10 full backend regression: .\\.venv\\Scripts\\pytest.exe -q --basetemp D:\\tmp\\job-platform-docsync-20260710 -p no:cacheprovider =\u003e 188 passed in 125.28s",
+                                             "2026-07-10 frontend production build: npm.cmd run build =\u003e passed with existing chunk-size warning only; Alembic heads =\u003e d9e1f2a3b409 (head)"
+                                       ],
+                      "known_residual_risks":  [
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Production-grade external vector recall/vector score integration is not deployed. Runtime can use the local deterministic `local_profile_text` provider in controlled environments; unconfigured/unsupported providers still record vector_store_unavailable and return auditable rule_baseline."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "The implemented BE-P4-06 slice selects the active intelligent strategy for runtime scoring. Rule-experiment treatment_intelligent_strategy_id binding remains future work."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Offline evaluation demo/mock samples are dry-run evidence only and must not be used for production launch decisions."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Production E2E evidence and launch decision governance are not complete."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "Earlier local pytest/Alembic startup failed when ALLOWED_ORIGINS was not a JSON array. Current local backend/job-platform/.env uses JSON-array ALLOWED_ORIGINS; future environments should keep this format to avoid pydantic-settings startup failures."
+                                                   },
+                                                   {
+                                                       "severity":  "P3",
+                                                       "item":  "Local Docker compose postgres was started for migration verification and may still be running."
+                                                   },
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "FE-P4 management UI evidence is local/dev browser acceptance only; it is not production launch evidence and relies on local demo credentials/sample data."
+                                                   }
+                                               ]
+                  },
+                  {
+                      "id":  "minimal-ci-2026-07-10",
+                      "owner":  "codex",
+                      "role":  "engineering-quality-gate",
+                      "status":  "done",
+                      "ready_for_next":  true,
+                      "summary":  "A minimal GitHub Actions CI baseline is implemented: reproducible Poetry dependencies, Ruff, Alembic single-head validation, full backend pytest, npm ci, frontend production build, active port/config consistency, and post-command worktree cleanliness checks.",
+                      "deliverables":  [
+                                           ".github/workflows/ci.yml",
+                                           "backend/job-platform/poetry.lock",
+                                           "scripts/check_project_consistency.py",
+                                           "backend/job-platform/tests/test_scripts/test_project_consistency.py"
+                                       ],
+                      "verification":  [
+                                           "poetry check --lock => passed",
+                                           "poetry run ruff check app tests ../../scripts/check_project_consistency.py --no-cache => All checks passed",
+                                           "poetry run python -m alembic heads => d9e1f2a3b409 (head)",
+                                           "poetry run pytest -q => 190 passed",
+                                           "npm ci => installed from package-lock without changing package-lock.json",
+                                           "npm run build => passed with the existing Vite chunk-size warning only",
+                                           "project consistency check => frontend 5174 / backend 8003",
+                                           "workflow YAML parse and command inspection => passed"
+                                       ],
+                      "known_residual_risks":  [
+                                                   {
+                                                       "severity":  "P2",
+                                                       "item":  "The workflow has not been pushed, so there is no GitHub-hosted runner execution record yet."
+                                                   },
+                                                   {
+                                                       "severity":  "P3",
+                                                       "item":  "Frontend production build still reports the existing large chunk warning."
+                                                   },
+                                                   {
+                                                       "severity":  "P3",
+                                                       "item":  "Poetry 2.2.1 emits PEP 621 migration warnings for legacy tool.poetry metadata; lock and install remain valid."
+                                                   }
+                                               ]
+                  }
+              ],
+    "signals":  {
+                    "pending_for_codex":  [
+                                              "BE-P4-vector-external: integrate production-grade external vector recall/vector score provider beyond local_profile_text",
+                                              "BE-P4-activation: add formal intelligent strategy activation, publish checks, rollback, permissions, and audit governance",
+                                              "BE-P4-exp: bind intelligent strategy treatments into rule experiments after governance design",
+                                              "P4-production: collect production-grade evidence and launch governance for intelligent matching"
+                                          ],
+                    "pending_for_claude":  [
+
+                                           ],
+                    "notes":  "P4 backend closure completed on 2026-06-27 and FE-P4 local management UI acceptance completed on 2026-06-29. On 2026-07-10 the minimal GitHub Actions CI baseline was added and locally validated: 190 backend tests, Ruff, Poetry lock, Alembic d9e1f2a3b409 (head), npm ci, frontend production build, active port/config consistency, and worktree cleanliness gates. The workflow has not been pushed, so no GitHub-hosted run exists yet. Runtime activation/publish/rollback governance remains incomplete. Remaining work should be opened as separate frontend quality, production hardening, large-file refactoring, external-vector, activation-governance, experiment-binding, and production-evidence tasks."
+                }
+}

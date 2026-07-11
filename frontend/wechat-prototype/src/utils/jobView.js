@@ -1,4 +1,4 @@
-import { listPublicJobs } from '../services/index.js'
+import { getPublicJob } from '../services/index.js'
 
 export function formatSalary(job) {
   if (!job) return ''
@@ -18,6 +18,7 @@ export function mapPublicJobToView(job) {
     exp: job.experience,
     edu: job.education,
     tags: job.tags || [],
+    tagRefs: job.tag_refs || [],
     companyShow: company,
     matchScore: 80,
     aiHighlight: '岗位已通过平台审核，当前对求职者可见。',
@@ -31,7 +32,6 @@ export function mapPublicJobToView(job) {
 }
 
 export async function findPublicJobById(jobId) {
-  const data = await listPublicJobs({ limit: 100 })
-  const job = (data.items || []).find(item => String(item.id) === String(jobId))
+  const job = await getPublicJob(jobId)
   return mapPublicJobToView(job)
 }

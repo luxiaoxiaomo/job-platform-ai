@@ -57,6 +57,7 @@ def _to_response(
         applicant_name=certification.applicant_name,
         applicant_title=certification.applicant_title,
         applicant_phone=certification.applicant_phone,
+        applicant_wechat=certification.applicant_wechat,
         verification_note=certification.verification_note,
         status=certification.status,
         reject_reason=certification.reject_reason,
@@ -231,6 +232,7 @@ class CompanyCertificationService:
                 applicant_name=data.applicant_name,
                 applicant_title=data.applicant_title,
                 applicant_phone=data.applicant_phone,
+                applicant_wechat=data.applicant_wechat,
                 verification_note=data.verification_note,
                 status="pending",
             )
@@ -249,6 +251,7 @@ class CompanyCertificationService:
             certification.applicant_name = data.applicant_name
             certification.applicant_title = data.applicant_title
             certification.applicant_phone = data.applicant_phone
+            certification.applicant_wechat = data.applicant_wechat
             certification.verification_note = data.verification_note
             certification.status = "pending"
             certification.reject_reason = None

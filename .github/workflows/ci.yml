@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend/job-platform
+    env:
+      POETRY_NO_INTERACTION: "1"
+      PYTHONUNBUFFERED: "1"
+      # Test-only Fernet key; production keys are supplied by the deployment environment.
+      ENCRYPTION_KEY: "DjMvO5B0ZUlwiBNx2THNP_eW3usmxPaByHxwQJOZEeE="
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check active project configuration
+        run: python ../../scripts/check_project_consistency.py --root ../..
+
+      - name: Install Poetry
+        run: python -m pip install --disable-pip-version-check "poetry==2.2.1"
+
+      - name: Verify dependency lock
+        run: poetry check --lock
+
+      - name: Install backend dependencies
+        run: poetry install --with dev --no-ansi
+
+      - name: Lint backend
+        run: poetry run ruff check app tests ../../scripts/check_project_consistency.py --no-cache
+
+      - name: Verify a single Alembic head
+        shell: bash
+        run: |
+          heads="$(poetry run python -m alembic heads)"
+          printf '%s\n' "$heads"
+          head_count="$(printf '%s\n' "$heads" | grep -c '(head)$')"
+          test "$head_count" -eq 1
+
+      - name: Run backend tests
+        run: poetry run pytest -q -p no:cacheprovider
+
+      - name: Ensure backend checks did not modify tracked files
+        working-directory: .
+        shell: bash
+        run: |
+          git diff --exit-code
+          if git status --porcelain --untracked-files=all | grep -q .; then
+            git status --short --untracked-files=all
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend/wechat-prototype
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/wechat-prototype/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Test frontend
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Ensure frontend build did not modify tracked files
+        working-directory: .
+        shell: bash
+        run: |
+          git diff --exit-code
+          if git status --porcelain --untracked-files=all | grep -q .; then
+            git status --short --untracked-files=all
+            exit 1
+          fi

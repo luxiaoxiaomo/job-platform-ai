@@ -1,8 +1,16 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { NavBar, AIBadge, AIButton, AICard, useToast, Sheet, EmotionTag } from '../components/ui.jsx'
+import { NavBar, AIBadge, AIButton, AICard, useToast, Sheet, EmotionTag, Switch } from '../components/ui.jsx'
 import { aiMock, batchParsedJobs, companyProfile, getRecruiterChat, pickColor } from '../mock/data.js'
-import { createJob, parseJobDescription, parseJobDescriptionText, preReviewJobContent, suggestJobSalary } from '../services/index.js'
+import {
+  createJob,
+  listPublicStandardPositions,
+  listPublicTagLibraryItems,
+  parseJobDescription,
+  parseJobDescriptionText,
+  preReviewJobContent,
+  suggestJobSalary,
+} from '../services/index.js'
 
 /* ============ 发布岗位（AI 代写 / 薪资建议 / 润色） ============ */
 export function RecruiterJobCreate() {
@@ -10,6 +18,9 @@ export function RecruiterJobCreate() {
   const toast = useToast()
   const [name, setName] = useState('')
   const [nameTip, setNameTip] = useState('')
+  const [standardPositionId, setStandardPositionId] = useState('')
+  const [standardPositions, setStandardPositions] = useState([])
+  const [standardPositionLoading, setStandardPositionLoading] = useState(false)
   const [city, setCity] = useState('')
   const [salaryLow, setSalaryLow] = useState('')
   const [salaryHigh, setSalaryHigh] = useState('')
@@ -20,15 +31,57 @@ export function RecruiterJobCreate() {
   const [require, setRequire] = useState('')
   const [writing, setWriting] = useState(false)
   const [tags, setTags] = useState([])
+  const [tagOptions, setTagOptions] = useState([])
+  const [selectedTagIds, setSelectedTagIds] = useState([])
+  const [tagOptionsLoading, setTagOptionsLoading] = useState(false)
   const [tagging, setTagging] = useState(false)
   const [jdUploading, setJdUploading] = useState(false) // B2: 上传JD文件
   const [jdFileName, setJdFileName] = useState('')
   const [jdParseNote, setJdParseNote] = useState('')
   const [jdFullText, setJdFullText] = useState('')
   const [jdTextParsing, setJdTextParsing] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
   const jdFileRef = useRef(null)
   const [jdPortraitContext, setJdPortraitContext] = useState(false) // B3: 是否展示了画像上下文
   const [genPortrait, setGenPortrait] = useState(false) // B4: 提交时生成岗位画像过渡
+
+  useEffect(() => {
+    let cancelled = false
+    const loadStandardPositionOptions = async () => {
+      try {
+        setStandardPositionLoading(true)
+        const data = await listPublicStandardPositions({ limit: 100 })
+        if (!cancelled) setStandardPositions(Array.isArray(data.items) ? data.items : [])
+      } catch {
+        if (!cancelled) setStandardPositions([])
+      } finally {
+        if (!cancelled) setStandardPositionLoading(false)
+      }
+    }
+    loadStandardPositionOptions()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadTagOptions = async () => {
+      try {
+        setTagOptionsLoading(true)
+        const data = await listPublicTagLibraryItems({ limit: 100 })
+        if (!cancelled) setTagOptions(Array.isArray(data.items) ? data.items : [])
+      } catch {
+        if (!cancelled) setTagOptions([])
+      } finally {
+        if (!cancelled) setTagOptionsLoading(false)
+      }
+    }
+    loadTagOptions()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const inferJobTags = () => {
     const text = `${name} ${city} ${duty} ${require}`.toLowerCase()
@@ -71,9 +124,16 @@ export function RecruiterJobCreate() {
     setTagging(true)
     setTimeout(() => {
       const inferred = inferJobTags()
-      setTags(inferred.length ? inferred : ['岗位待完善'])
+      const matchedIds = tagOptions
+        .filter(item => inferred.includes(item.name) || inferred.includes(item.category))
+        .map(item => String(item.id))
+      if (matchedIds.length) {
+        applySelectedTagIds(matchedIds)
+      } else {
+        setTags(inferred.length ? inferred : [])
+      }
       setTagging(false)
-      toast('AI 已根据当前 JD 生成岗位标签', '✓')
+      toast(matchedIds.length ? '已匹配标签库标签' : '未命中标签库，可手动选择标签', '✓')
     }, 600)
   }
 
@@ -84,6 +144,36 @@ export function RecruiterJobCreate() {
     else if (v === '美工') setNameTip('UI设计师')
     else if (v === '销售') setNameTip('销售经理')
     else setNameTip('')
+  }
+
+  const handleNameInput = (value) => {
+    onNameChange(value)
+    if (!value.trim() && standardPositionId) setStandardPositionId('')
+  }
+
+  const onStandardPositionChange = (value) => {
+    setStandardPositionId(value)
+    const matched = standardPositions.find(item => String(item.id) === String(value))
+    if (matched) {
+      setName(matched.name)
+      setNameTip('')
+    }
+  }
+
+  const applySelectedTagIds = (ids) => {
+    const uniqueIds = Array.from(new Set(ids.map(item => String(item)).filter(Boolean)))
+    setSelectedTagIds(uniqueIds)
+    const selectedNames = tagOptions
+      .filter(item => uniqueIds.includes(String(item.id)))
+      .map(item => item.name)
+    setTags(selectedNames)
+  }
+
+  const toggleTagOption = (id) => {
+    const key = String(id)
+    applySelectedTagIds(selectedTagIds.includes(key)
+      ? selectedTagIds.filter(item => item !== key)
+      : [...selectedTagIds, key])
   }
 
   const writeJD = () => {
@@ -198,6 +288,7 @@ export function RecruiterJobCreate() {
     if (require.trim().length < 10) { toast('请填写至少 10 个字的任职要求'); return null }
 
     return {
+      standard_position_id: standardPositionId ? Number(standardPositionId) : undefined,
       title: name.trim(),
       city: city.trim(),
       salary_min: low,
@@ -208,6 +299,22 @@ export function RecruiterJobCreate() {
       requirement: require.trim(),
       benefits: null,
       tags,
+      tag_ids: selectedTagIds.map(id => Number(id)),
+    }
+  }
+
+  const saveDraft = async () => {
+    const draft = buildDraft()
+    if (!draft || savingDraft) return
+    try {
+      setSavingDraft(true)
+      await createJob({ ...draft, status: 'draft' })
+      toast('已保存草稿', '✓')
+      setTimeout(() => navigate('/recruiter/jobs'), 600)
+    } catch (error) {
+      toast(error.message || '保存草稿失败')
+    } finally {
+      setSavingDraft(false)
     }
   }
 
@@ -219,9 +326,23 @@ export function RecruiterJobCreate() {
         <div className="cell-group-title">岗位信息</div>
         <div className="cell-group">
           <div className="form-cell">
+            <span className="fc-label">标准职位</span>
+            <div className="fc-body">
+              <select value={standardPositionId} onChange={e => onStandardPositionChange(e.target.value)}>
+                <option value="">{standardPositionLoading ? '加载中...' : '选择标准职位'}</option>
+                {standardPositions.map(item => (
+                  <option key={item.id} value={item.id}>{item.name}{item.category ? ` / ${item.category}` : ''}</option>
+                ))}
+              </select>
+              <div className="tiny muted" style={{ marginTop: 6 }}>
+                选择后自动回填岗位名称，并建立与标准职位库的关联。
+              </div>
+            </div>
+          </div>
+          <div className="form-cell">
             <span className="fc-label req">岗位名称</span>
             <div className="fc-body">
-              <input value={name} placeholder="如：前端开发工程师" onChange={e => onNameChange(e.target.value)} />
+              <input value={name} placeholder="如：前端开发工程师" onChange={e => handleNameInput(e.target.value)} />
               {nameTip && (
                 <div className="row gap6" style={{ marginTop: 6 }} onClick={() => { setName(nameTip); setNameTip('') }}>
                   <AIBadge soft>AI标准化</AIBadge>
@@ -347,22 +468,39 @@ export function RecruiterJobCreate() {
           </div>
         </div>
 
-        {/* AI 岗位标签 */}
+        {/* 岗位标签 */}
         <div className="cell-group-title row between" style={{ paddingRight: 16 }}>
           <span>岗位标签</span>
           <AIButton onClick={genTags} loading={tagging}>{tagging ? '生成中…' : 'AI 智能打标'}</AIButton>
         </div>
         <div className="cell-group"><div style={{ padding: 16 }}>
-          {tags.length === 0
-            ? <div className="tiny muted">填完职责要求后，点「AI 智能打标」自动生成岗位标签（用于精准匹配与画像）</div>
-            : (<>
-              <div className="row gap6" style={{ marginBottom: 8 }}><AIBadge>AI生成</AIBadge><span className="tiny muted">点标签可删除</span></div>
-              <div className="tagcloud">
-                {tags.map(t => (
-                  <span key={t} className="tag tag-green" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => setTags(ts => ts.filter(x => x !== t))}>{t} ✕</span>
-                ))}
-              </div>
-            </>)}
+          <div className="tiny muted" style={{ marginBottom: 8 }}>
+            {tagOptionsLoading ? '标签加载中...' : '从后台标签库选择，提交后保存统一标签 ID。AI 打标会优先匹配标签库。'}
+          </div>
+          <div className="tagcloud">
+            {tagOptions.map(item => {
+              const active = selectedTagIds.includes(String(item.id))
+              return (
+                <span
+                  key={item.id}
+                  className={`tag ${active ? 'tag-green' : 'tag-gray'}`}
+                  style={{ fontSize: 13, padding: '5px 12px', cursor: 'pointer' }}
+                  onClick={() => toggleTagOption(item.id)}
+                >
+                  {item.name}
+                </span>
+              )
+            })}
+          </div>
+          {!tagOptionsLoading && tagOptions.length === 0 && (
+            <div className="tiny muted">暂无可用标签，请先在后台标签库维护。</div>
+          )}
+          {tags.length > 0 && (
+            <div className="row gap6" style={{ marginTop: 10 }}>
+              <AIBadge soft>已选</AIBadge>
+              <span className="tiny muted">{tags.join('、')}</span>
+            </div>
+          )}
         </div></div>
 
         <div className="ai-tip padx" style={{ marginTop: 10, lineHeight: 1.7 }}>
@@ -371,7 +509,9 @@ export function RecruiterJobCreate() {
       </div>
 
       <div className="page-foot">
-        <button className="btn btn-default" style={{ flex: '0 0 100px' }} onClick={() => { toast('已存草稿'); navigate(-1) }}>存草稿</button>
+        <button className={`btn btn-default ${savingDraft ? 'btn-disabled' : ''}`} style={{ flex: '0 0 100px' }} disabled={savingDraft} onClick={saveDraft}>
+          {savingDraft ? '保存中...' : '存草稿'}
+        </button>
         <button className="btn btn-primary" onClick={() => {
           const draft = buildDraft()
           if (!draft) return
@@ -528,8 +668,15 @@ export function RecruiterJobReview() {
   const toast = useToast()
   const [submitting, setSubmitting] = useState(false)
   const jobDraft = location.state?.jobDraft
+  const [visibility, setVisibility] = useState({
+    company_display_mode: 'company_name',
+    contact_phone_public: false,
+    contact_email_public: true,
+    contact_wechat_public: false,
+  })
   const [review, setReview] = useState(() => runJobContentReview(jobDraft))
   const [stage, setStage] = useState('checking') // checking | result
+  const setVisibilityField = (key, value) => setVisibility(current => ({ ...current, [key]: value }))
   React.useEffect(() => {
     let cancelled = false
     const runReview = async () => {
@@ -604,8 +751,28 @@ export function RecruiterJobReview() {
               检测到你是认证企业，建议展示<b>企业真名</b>提升信任度；联系方式优先公开<b>企业邮箱</b>以保护个人隐私。
             </AICard>
             <div className="cell-group">
-              <div className="cell"><span className="cell-label">企业名称展示</span><span className="cell-value">真名（AI 推荐）</span></div>
-              <div className="cell"><span className="cell-label">公开联系方式</span><span className="cell-value">企业邮箱</span></div>
+              <div className="cell">
+                <span className="cell-label">企业名称展示</span>
+                <select
+                  value={visibility.company_display_mode}
+                  onChange={event => setVisibilityField('company_display_mode', event.target.value)}
+                  style={{ border: 0, background: 'transparent', textAlign: 'right', color: 'var(--wx-text-2)', fontSize: 14 }}
+                >
+                  <option value="company_name">企业真名</option>
+                  <option value="display_name">招聘者昵称</option>
+                  <option value="anonymous">匿名企业</option>
+                </select>
+              </div>
+              {[
+                ['contact_email_public', '企业邮箱'],
+                ['contact_phone_public', '联系电话'],
+                ['contact_wechat_public', '微信'],
+              ].map(([key, label]) => (
+                <div className="cell" key={key}>
+                  <span className="cell-label">{label}</span>
+                  <Switch on={visibility[key]} onClick={() => setVisibilityField(key, !visibility[key])} />
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -626,7 +793,7 @@ export function RecruiterJobReview() {
             }
             try {
               setSubmitting(true)
-              await createJob(jobDraft)
+              await createJob({ ...jobDraft, ...visibility, status: 'pending' })
               toast('已提交审核，审核通过后对求职者可见', '✓')
               setTimeout(() => navigate('/recruiter/jobs'), 900)
             } catch (error) {
@@ -783,7 +950,6 @@ export function RecruiterJobUpload() {
                   </div>
                   <div className="row gap6" style={{ marginTop: 4, flexWrap: 'wrap' }}>
                     <span className="tag tag-gray">{r.city}</span>
-                    {r.tags && r.tags.map(t => <span key={t} className="tag tag-green">{t}</span>)}
                     <span className="ai-badge soft">AI解析</span>
                   </div>
                   {r.warn && <div className="tiny" style={{ color: 'var(--wx-orange)', marginTop: 4 }}>⚠ {r.warn}</div>}

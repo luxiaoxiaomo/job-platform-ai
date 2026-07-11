@@ -1,11 +1,10 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { NavBar, AIBadge, AICard, useToast } from '../components/ui.jsx'
-import { RadarChart, ScoreBar } from '../components/charts.jsx'
-import { resumeParsed, seekerProfile } from '../mock/data.js'
+import { NavBar, HomeNavLink, AIBadge, AICard, useToast } from '../components/ui.jsx'
+import { RadarChart } from '../components/charts.jsx'
+import { uploadResume, getStructuredResult, getProfileSummary } from '../services/index.js'
 import { useProfile } from '../common/ProfileContext.jsx'
-import { uploadResume } from '../services/index.js'
-import { getLegacyResumeStatus } from '../utils/resumeStatus.js'
+import { usePublicTagOptions } from '../common/usePublicTagOptions.js'
 
 export function SeekerResumeUpload() {
   const navigate = useNavigate()
@@ -14,8 +13,11 @@ export function SeekerResumeUpload() {
   const { hasResume, resume, profile, markResume } = useProfile()
   const [stage, setStage] = useState(hasResume ? 'done' : 'idle')
   const [currentResume, setCurrentResume] = useState(resume)
+  const [currentParseRunId, setCurrentParseRunId] = useState(resume?.current_parse_run_id || null)
+  const [parsedBasic, setParsedBasic] = useState(null)
   const [error, setError] = useState('')
-  const profileSkills = inferProfileSkills(profile, currentResume?.parsed_snapshot)
+  const { tagOptions, tagOptionsLoading } = usePublicTagOptions()
+  const profileSkills = inferProfileSkills(profile, currentResume?.parsed_snapshot, parsedBasic, tagOptions)
 
   const chooseFile = () => {
     if (stage === 'uploading') return
@@ -33,6 +35,14 @@ export function SeekerResumeUpload() {
       const uploaded = await uploadResume(file)
       setCurrentResume(uploaded)
       markResume(uploaded)
+      const parseRunId = uploaded.parse_run?.id || uploaded.current_parse_run_id
+      setCurrentParseRunId(parseRunId || null)
+      if (parseRunId) {
+        const structured = await getStructuredResult(parseRunId).catch(() => null)
+        setParsedBasic(normalizeStructuredBasic(structured?.basic_info || structured?.profile?.structured_json?.basic))
+      } else {
+        setParsedBasic(null)
+      }
       setStage('done')
       toast('简历已上传', '✓')
     } catch (err) {
@@ -44,7 +54,7 @@ export function SeekerResumeUpload() {
 
   return (
     <>
-      <NavBar title="上传简历" />
+      <NavBar title="上传简历" right={<HomeNavLink />} />
       <div className="page" style={{ paddingBottom: 90 }}>
         <div className="cell-group-title">上传简历文件</div>
         <div className="cell-group"><div style={{ padding: 16 }}>
@@ -77,23 +87,24 @@ export function SeekerResumeUpload() {
         </div></div>
 
         {stage === 'done' && (<>
-          <div className="ai-tip padx">当前为临时核心信息回写，正式简历解析模块后续再设计。</div>
+          <div className="ai-tip padx">以下为本次上传简历的解析结果，确认后才会保存到个人资料。</div>
           {currentResume?.parsed_snapshot && (
             <AICard title="投递快照">{currentResume.parsed_snapshot}</AICard>
           )}
-          <div className="cell-group-title">基础信息回写结果</div>
+          <div className="cell-group-title">本次解析结果</div>
           <div className="cell-group">
-            <Row label="姓名" value={profile?.real_name || '暂未生成'} ai />
-            <Row label="性别" value={profile?.gender || '暂未生成'} ai />
-            <Row label="学历" value={profile?.education || '暂未生成'} ai />
-            <Row label="经验" value={profile?.experience_years !== null && profile?.experience_years !== undefined ? `${profile.experience_years}年` : '暂未生成'} ai />
-            <Row label="职业方向" value={profile?.target_position || '暂未生成'} ai />
+            <Row label="姓名" value={parsedBasic?.real_name || '暂未识别'} ai />
+            <Row label="年龄" value={parsedBasic?.age ? `${parsedBasic.age}岁` : '暂未识别'} ai />
+            <Row label="性别" value={parsedBasic?.gender || '暂未识别'} ai />
+            <Row label="学历" value={parsedBasic?.highest_education || '暂未识别'} ai />
+            <Row label="经验" value={parsedBasic?.work_years !== null && parsedBasic?.work_years !== undefined ? `${parsedBasic.work_years}年` : '暂未识别'} ai />
+            <Row label="职业方向" value={parsedBasic?.target_position || '暂未识别'} ai />
           </div>
           <div className="cell-group-title">技能标签</div>
           <div className="cell-group"><div style={{ padding: 16 }}>
             {profileSkills.length > 0
               ? <div className="tagcloud">{profileSkills.map(s => <span key={s} className="tag tag-green" style={{ fontSize: 13, padding: '4px 12px' }}>{s}</span>)}</div>
-              : <div className="tiny muted">暂未生成技能标签</div>}
+              : <div className="tiny muted">{tagOptionsLoading ? '标签加载中...' : '暂无匹配的标签库标签'}</div>}
           </div></div>
         </>)}
       </div>
@@ -101,7 +112,12 @@ export function SeekerResumeUpload() {
         {stage === 'done'
           ? <>
             <button className="btn btn-default" onClick={chooseFile}>重新上传</button>
-            <button className="btn btn-primary" onClick={() => navigate('/seeker/portrait')}>查看我的简历画像</button>
+            <button
+              className={`btn ${currentParseRunId ? 'btn-primary' : 'btn-disabled'}`}
+              onClick={() => currentParseRunId && navigate(`/seeker/parse-confirm/${currentParseRunId}`)}
+            >
+              确认并保存解析结果
+            </button>
           </>
           : <button className={`btn ${stage === 'uploading' ? 'btn-disabled' : 'btn-primary'}`} onClick={chooseFile}>{stage === 'uploading' ? '上传中...' : '选择并上传简历'}</button>}
       </div>
@@ -112,72 +128,370 @@ export function SeekerResumeUpload() {
 function Row({ label, value, ai }) {
   return (
     <div className="cell"><span className="cell-label">{label}</span>
-      <span className="cell-value">{value} {ai && <span className="ai-badge soft" style={{ marginLeft: 4 }}>临时回写</span>}</span>
+      <span className="cell-value">{value} {ai && <span className="ai-badge soft" style={{ marginLeft: 4 }}>本次解析</span>}</span>
     </div>
   )
 }
 
-function inferProfileSkills(profile, snapshot = '') {
+function inferProfileSkills(profile, snapshot = '', parsedBasic = null, tagOptions = []) {
   const source = [
+    parsedBasic?.target_position || '',
+    parsedBasic?.highest_education || '',
     profile?.target_position || '',
     profile?.education || '',
     snapshot || '',
   ].join('\n')
-  const keywords = ['PeopleSoft', 'HCM', '人事', '薪酬福利', '电子合同', '实施', '运维', '优化', '项目交付', '需求分析']
-  return keywords.filter(keyword => source.includes(keyword))
+  return (tagOptions || [])
+    .map(tag => tag?.name)
+    .filter(Boolean)
+    .filter(name => source.includes(name))
+    .slice(0, 8)
+}
+
+function normalizeStructuredBasic(basic) {
+  if (!basic) return null
+
+  // 辅助函数：提取字段值（支持 P2 的 {value, confidence} 结构）
+  const extractValue = (field) => {
+    if (!field) return null
+    // P2 格式: {value: "xxx", confidence: 0.9}
+    if (typeof field === 'object' && 'value' in field) {
+      return field.value
+    }
+    // 扁平格式: 直接是值
+    return field
+  }
+
+  return {
+    real_name: extractValue(basic.real_name) || extractValue(basic.name) || null,
+    age: extractValue(basic.age) ?? null,
+    gender: extractValue(basic.gender) || null,
+    highest_education: extractValue(basic.highest_education) || extractValue(basic.education) || null,
+    work_years: extractValue(basic.work_years) ?? extractValue(basic.experience_years) ?? null,
+    target_position: extractValue(basic.target_position) || extractValue(basic.apply_job) || null,
+  }
+}
+
+function buildResumeRadarData({ basicInfo, summaries = {}, completeness = {} }) {
+  const skills = summaries.skills || []
+  const educations = summaries.educations || []
+  const workExperiences = summaries.work_experiences || []
+  const projects = summaries.projects || []
+  const certificates = summaries.certificates || []
+
+  return [
+    { key: '\u5b8c\u6574\u5ea6', score: clampScore(completeness.score || 0) },
+    { key: '\u6280\u80fd', score: clampScore(skills.length * 18) },
+    { key: '\u7ecf\u9a8c', score: experienceRadarScore(basicInfo?.work_years, workExperiences.length) },
+    { key: '\u5b66\u5386', score: educationRadarScore(basicInfo?.highest_education, educations.length) },
+    { key: '\u9879\u76ee', score: clampScore(projects.length * 35) },
+    { key: '\u8bc1\u4e66', score: clampScore(certificates.length * 45) },
+  ].filter(item => item.score > 0)
+}
+
+function experienceRadarScore(workYears, workCount) {
+  const yearScore = workYears === null || workYears === undefined ? 0 : Math.min(Number(workYears) * 16, 100)
+  const workScore = Math.min(workCount * 28, 100)
+  return clampScore(Math.max(yearScore, workScore))
+}
+
+function educationRadarScore(education, educationCount) {
+  const text = String(education || '')
+  if (text.includes('\u535a\u58eb')) return 100
+  if (text.includes('\u7855\u58eb') || text.includes('\u7814\u7a76\u751f')) return 92
+  if (text.includes('\u672c\u79d1')) return 82
+  if (text.includes('\u5927\u4e13') || text.includes('\u4e13\u79d1')) return 68
+  if (text.includes('\u4e2d\u4e13') || text.includes('\u9ad8\u4e2d')) return 52
+  return educationCount > 0 ? 60 : 0
+}
+
+function clampScore(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  return Math.max(0, Math.min(100, Math.round(numeric)))
 }
 
 export function SeekerPortrait() {
   const navigate = useNavigate()
-  const { resume, profile } = useProfile()
-  const p = seekerProfile
-  const name = profile?.real_name || '未填写姓名'
-  const target = profile?.target_position || p.level + '前端'
-  const experience = profile?.experience_years !== null && profile?.experience_years !== undefined ? `${profile.experience_years}年经验` : '经验未填写'
-  const education = profile?.education || '学历未填写'
-  const city = profile?.city || '城市未填写'
-  const status = getLegacyResumeStatus(resume)
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    getProfileSummary()
+      .then(result => {
+        setData(result)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('获取画像数据失败:', err)
+        setLoading(false)
+      })
+  }, [])
+
+  if (loading) {
+    return (
+      <>
+        <NavBar title="我的简历画像" right={<HomeNavLink />} />
+        <div className="page" style={{ textAlign: 'center', padding: '60px 20px', color: '#999' }}>加载中…</div>
+      </>
+    )
+  }
+
+  // 空状态：未上传简历
+  if (!data?.resume) {
+    return (
+      <>
+        <NavBar title="我的简历画像" right={<HomeNavLink />} />
+        <div className="page" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>
+          <div style={{ color: '#999', marginBottom: 20 }}>还未上传简历</div>
+          <button className="btn btn-primary" onClick={() => navigate('/seeker/resume')}>立即上传简历</button>
+        </div>
+      </>
+    )
+  }
+
+  const { resume, profile, basic_info, summaries, completeness, review } = data
+  const name = basic_info?.real_name || '未识别'
+  const target = basic_info?.target_position || '求职中'
+  const profileTagRefs = profile?.tag_refs || []
+  const radarData = buildResumeRadarData({ basicInfo: basic_info, summaries, completeness })
+
   return (
     <>
-      <NavBar title="我的简历画像" />
+      <NavBar title="我的简历画像" right={<HomeNavLink />} />
       <div className="page">
         <div className="portrait-hd">
-          <div className="ph-name">{name} 的能力画像</div>
-          <span className="ph-level">⚡ 当前方向：{target}</span>
+          <div className="ph-name">{name} 的简历画像</div>
+          <span className="ph-level">⚡ 目标岗位：{target}</span>
         </div>
 
-        {resume?.file_name && (
-          <div className="cell-group">
-            <div className="cell">
-              <span className="cell-label">当前简历</span>
-              <span className="cell-value">{resume.file_name}</span>
+        {radarData.length > 0 && (
+          <>
+            <div className="cell-group-title">画像维度</div>
+            <div className="cell-group">
+              <div className="center" style={{ padding: "12px 0 8px" }}>
+                <RadarChart data={radarData} size={236} color="#07C160" />
+              </div>
+              <div style={{ padding: "0 16px 14px" }}>
+                <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+                  {radarData.map(item => (
+                    <span key={item.key} className="tag tag-gray" style={{ fontSize: 12 }}>
+                      {item.key} {item.score}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
+          </>
+        )}
+
+
+        {/* 简历文件信息 */}
+        <div className="cell-group">
+          <div className="cell">
+            <span className="cell-label">当前简历</span>
+            <span className="cell-value">{resume.file_name}</span>
+          </div>
+          <div className="cell">
+            <span className="cell-label">解析状态</span>
+            <span className="cell-value">
+              <span style={{
+                color: review.needs_review ? '#FA9D3B' : '#07C160',
+                fontWeight: 500
+              }}>{review.status_label}</span>
+            </span>
+          </div>
+          {profile?.created_at && (
             <div className="cell">
-              <span className="cell-label">解析状态</span>
-              <span className="cell-value">
-                <span style={{
-                  color: status.color === 'green' ? '#07C160' : status.color === 'orange' ? '#FA9D3B' : '#999',
-                  fontWeight: 500
-                }}>{status.label}</span>
+              <span className="cell-label">解析时间</span>
+              <span className="cell-value tiny muted">
+                {new Date(profile.created_at).toLocaleString('zh-CN')}
               </span>
             </div>
+          )}
+        </div>
+
+        {/* 待确认提示 */}
+        {review.needs_review && (
+          <div style={{ padding: '12px 16px', background: '#FFF7E6', margin: '12px 0', borderRadius: 8 }}>
+            <div style={{ fontSize: 14, color: '#D46B08', marginBottom: 8 }}>
+              ⚠️ 有 {review.low_confidence_count} 个字段待确认
+            </div>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '8px' }}
+              onClick={() => navigate(`/seeker/parse-confirm/${profile.parse_run_id}`)}
+            >
+              前往确认解析结果
+            </button>
           </div>
         )}
 
-        <div className="cell-group-title">基础画像</div>
-        <div className="cell-group"><div style={{ padding: 16 }}>
-          <div className="tagcloud">
-            {p.tags.map(t => <span key={t.t} className={`tc ${t.w}`}>{t.t}</span>)}
+        {/* 字段完整度 */}
+        <div className="cell-group-title">字段完整度</div>
+        <div className="cell-group">
+          <div style={{ padding: '12px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 14 }}>核心信息</span>
+              <span style={{ fontSize: 20, fontWeight: 600, color: completeness.score >= 80 ? '#07C160' : '#FA9D3B' }}>
+                {completeness.score}%
+              </span>
+            </div>
+            <div style={{
+              height: 8,
+              background: '#F0F0F0',
+              borderRadius: 4,
+              overflow: 'hidden',
+              marginBottom: 8
+            }}>
+              <div style={{
+                width: `${completeness.score}%`,
+                height: '100%',
+                background: completeness.score >= 80 ? '#07C160' : '#FA9D3B',
+                transition: 'width 0.3s'
+              }} />
+            </div>
+            <div className="tiny muted">
+              已填写 {completeness.filled_count}/{completeness.total_count} 个核心字段
+            </div>
+            {completeness.missing_fields?.length > 0 && (
+              <div className="tiny" style={{ marginTop: 8, color: '#FA9D3B' }}>
+                缺失字段: {completeness.missing_fields.join('、')}
+              </div>
+            )}
           </div>
-          <div className="tiny muted" style={{ marginTop: 10 }}>基于简历关键词提取</div>
-        </div></div>
+        </div>
 
-        <div className="cell-group-title">能力维度参考</div>
-        <div className="center" style={{ background: '#fff', paddingTop: 8 }}><RadarChart data={p.dims} size={240} /></div>
-        <div className="cell-group"><div style={{ padding: '14px 16px 4px' }}>
-          {p.dims.map(d => <ScoreBar key={d.key} label={d.key} score={d.score} color={d.score >= 85 ? '#07C160' : '#FA9D3B'} />)}
-        </div></div>
+        {/* 基础信息 */}
+        {basic_info && (
+          <>
+            <div className="cell-group-title">基础信息</div>
+            <div className="cell-group">
+              {basic_info.real_name && <div className="cell"><span className="cell-label">姓名</span><span className="cell-value">{basic_info.real_name}</span></div>}
+              {basic_info.gender && <div className="cell"><span className="cell-label">性别</span><span className="cell-value">{basic_info.gender}</span></div>}
+              {basic_info.age && <div className="cell"><span className="cell-label">年龄</span><span className="cell-value">{basic_info.age}岁</span></div>}
+              {basic_info.highest_education && <div className="cell"><span className="cell-label">学历</span><span className="cell-value">{basic_info.highest_education}</span></div>}
+              {basic_info.work_years !== null && basic_info.work_years !== undefined && (
+                <div className="cell"><span className="cell-label">工作经验</span><span className="cell-value">{basic_info.work_years}年</span></div>
+              )}
+              {basic_info.current_city && <div className="cell"><span className="cell-label">当前城市</span><span className="cell-value">{basic_info.current_city}</span></div>}
+              {basic_info.target_position && <div className="cell"><span className="cell-label">目标岗位</span><span className="cell-value">{basic_info.target_position}</span></div>}
+            </div>
+          </>
+        )}
 
+        {/* 技能标签 */}
+        {profileTagRefs.length > 0 && (
+          <>
+            <div className="cell-group-title">画像标签</div>
+            <div className="cell-group">
+              <div style={{ padding: '12px 16px' }}>
+                <div className="tagcloud">
+                  {profileTagRefs.map(tag => (
+                    <span key={tag.id} className="tag tag-green" style={{ fontSize: 13, padding: '4px 12px' }}>
+                      {tag.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {summaries.skills?.length > 0 && (
+          <>
+            <div className="cell-group-title">技能 ({summaries.skills.length} 项)</div>
+            <div className="cell-group">
+              <div style={{ padding: '12px 16px' }}>
+                <div className="tagcloud">
+                  {summaries.skills.map((skill, idx) => (
+                    <span key={idx} className="tag tag-green" style={{ fontSize: 13, padding: '4px 12px' }}>
+                      {skill.skill_name}
+                      {skill.skill_level && ` · ${skill.skill_level}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 教育经历 */}
+        {summaries.educations?.length > 0 && (
+          <>
+            <div className="cell-group-title">教育经历 ({summaries.educations.length} 条)</div>
+            <div className="cell-group">
+              {summaries.educations.map((edu, idx) => (
+                <div key={idx} className="cell">
+                  <span className="cell-label">{edu.degree}</span>
+                  <span className="cell-value">{edu.school_name} · {edu.major}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 工作经历 */}
+        {summaries.work_experiences?.length > 0 && (
+          <>
+            <div className="cell-group-title">工作经历 ({summaries.work_experiences.length} 条)</div>
+            <div className="cell-group">
+              {summaries.work_experiences.map((work, idx) => (
+                <div key={idx} style={{ padding: '12px 16px', borderBottom: idx < summaries.work_experiences.length - 1 ? '1px solid #eee' : 'none' }}>
+                  <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                    {work.position}
+                    {work.company_name && ` @ ${work.company_name}`}
+                  </div>
+                  {work.description && (
+                    <div className="tiny muted" style={{ lineHeight: 1.6 }}>
+                      {work.description.length > 60 ? work.description.slice(0, 60) + '...' : work.description}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 项目经历 */}
+        {summaries.projects?.length > 0 && (
+          <>
+            <div className="cell-group-title">项目经历 ({summaries.projects.length} 条)</div>
+            <div className="cell-group">
+              {summaries.projects.map((proj, idx) => (
+                <div key={idx} style={{ padding: '12px 16px', borderBottom: idx < summaries.projects.length - 1 ? '1px solid #eee' : 'none' }}>
+                  <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                    {proj.project_name}
+                    {proj.role && ` · ${proj.role}`}
+                  </div>
+                  {proj.description && (
+                    <div className="tiny muted" style={{ lineHeight: 1.6 }}>
+                      {proj.description.length > 60 ? proj.description.slice(0, 60) + '...' : proj.description}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 证书 */}
+        {summaries.certificates?.length > 0 && (
+          <>
+            <div className="cell-group-title">证书 ({summaries.certificates.length} 项)</div>
+            <div className="cell-group">
+              {summaries.certificates.map((cert, idx) => (
+                <div key={idx} className="cell">
+                  <span className="cell-label">{cert.certificate_name}</span>
+                  <span className="cell-value tiny muted">{cert.certificate_type}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 底部按钮 */}
         <div className="btn-block-wrap">
           <button className="btn btn-default" onClick={() => navigate('/seeker/resume')}>重新上传简历</button>
           <button className="btn btn-default" onClick={() => navigate('/seeker/parse-history')}>查看解析历史</button>

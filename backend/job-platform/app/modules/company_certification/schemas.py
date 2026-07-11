@@ -40,6 +40,7 @@ class CompanyCertificationSubmit(BaseModel):
     applicant_name: Optional[str] = Field(None, max_length=50, description="申请人姓名")
     applicant_title: Optional[str] = Field(None, max_length=80, description="申请人职位")
     applicant_phone: Optional[str] = Field(None, max_length=30, description="申请人联系电话")
+    applicant_wechat: Optional[str] = Field(None, max_length=80, description="申请人微信")
     verification_note: Optional[str] = Field(None, max_length=500, description="认证补充说明")
 
     @field_validator("unified_social_credit_code")
@@ -61,6 +62,7 @@ class CompanyCertificationSubmit(BaseModel):
         "applicant_name",
         "applicant_title",
         "applicant_phone",
+        "applicant_wechat",
         "verification_note",
     )
     @classmethod
@@ -135,6 +137,7 @@ class CompanyCertificationResponse(BaseModel):
     applicant_name: Optional[str] = None
     applicant_title: Optional[str] = None
     applicant_phone: Optional[str] = None
+    applicant_wechat: Optional[str] = None
     verification_note: Optional[str] = None
     status: CertificationStatus
     reject_reason: Optional[str] = None

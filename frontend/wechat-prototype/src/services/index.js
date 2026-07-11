@@ -3,7 +3,7 @@
  * 根据环境变量切换Mock/Real模式
  */
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // 认证服务
 import * as realAuthService from './auth.js'
@@ -19,6 +19,12 @@ export * from './aiPrompts.js'
 export * from './applications.js'
 export * from './resumes.js'
 export * from './seekerProfile.js'
+export * from './matches.js'
+export * from './matchRules.js'
+export * from './messages.js'
+export * from './notifications.js'
+export * from './users.js'
+export * from './baseData.js'
 
 export const userService = USE_MOCK ? {
   getCurrentUserInfo: mockAuthService.getCurrentUserInfo,

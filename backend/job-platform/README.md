@@ -2,12 +2,42 @@
 
 ## 📋 项目状态
 
-- ✅ **审核问题修复**: 所有高风险和中风险问题已修复
-- ✅ **数据库**: PostgreSQL + Redis (Docker)
-- ✅ **测试覆盖**: 20个自动化测试用例
-- ✅ **可交付状态**: 已达生产就绪
+- 后端核心业务闭环、P3 Match Quality 和 P4 本地智能匹配能力已实现。
+- 2026-07-10 后端全量回归：`190 passed`。
+- Alembic：`d9e1f2a3b409 (head)`，当前只有一个 head。
+- GitHub Actions 已执行 Poetry lock、Ruff、主动配置一致性、Alembic 单 head 和完整 pytest 门禁。
+- 当前状态适用于本地开发和 demo 验收；生产环境 E2E、发布治理与运行监控尚未完成。
 
-详细修复报告：[docs/审核问题修复报告.md](docs/审核问题修复报告.md)
+## P4 智能匹配
+
+当前后端已实现：
+
+- 智能策略与离线评估表、迁移和持久化。
+- 管理员策略列表、创建、详情、更新、克隆 API，以及操作审计。
+- 离线评估 run/report API；demo/mock 样本只返回 dry-run 证据，不能形成上线决策。
+- 求职者岗位匹配和招聘者投递匹配的运行时智能评分。当存在 `active` 智能策略时，运行 `intelligent_hybrid_v1`。
+- 本地确定性向量 provider `local_profile_text`。provider 不可用或未配置时，记录降级原因并返回 `rule_baseline`。
+
+当前边界：
+
+- 管理 API 创建的是草稿，尚无正式激活/发布治理接口。
+- 生产级外部向量召回和向量分数尚未接入。
+- 规则实验的 treatment 尚未绑定智能策略。
+- 本地自动化、前端构建和浏览器验收不是生产上线证据。
+
+手动测试指南：[`../../docs/p4-intelligent-matching/P4_智能匹配_手动测试指南.md`](../../docs/p4-intelligent-matching/P4_智能匹配_手动测试指南.md)
+
+主要接口：
+
+```text
+GET    /api/v1/matches/intelligent/strategies
+POST   /api/v1/matches/intelligent/strategies
+GET    /api/v1/matches/intelligent/strategies/{strategy_id}
+PATCH  /api/v1/matches/intelligent/strategies/{strategy_id}
+POST   /api/v1/matches/intelligent/strategies/{strategy_id}/clone
+POST   /api/v1/matches/intelligent/strategies/{strategy_id}/evaluations
+GET    /api/v1/matches/intelligent/evaluations/{evaluation_id}
+```
 
 ---
 
@@ -38,20 +68,24 @@ start_server.bat
 
 **方式2 - 手动启动**:
 ```bash
-poetry run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+poetry run uvicorn app.main:app --host 127.0.0.1 --port 8003 --reload
 ```
 
 ### 5. 访问API文档
-http://localhost:8000/docs
+http://localhost:8003/docs
 
 ---
 
 ## 🧪 测试
 
 ### 运行所有测试
-```bash
-poetry run pytest tests/ -v
+```powershell
+poetry check --lock
+poetry run ruff check app tests ..\..\scripts\check_project_consistency.py --no-cache
+poetry run pytest -q --basetemp D:\AIposition\.tmp\job-platform-pytest -p no:cacheprovider
 ```
+
+`D:\AIposition\.tmp\` 已被忽略，适合 Windows 上默认临时目录不可写时使用。
 
 ### 运行特定测试
 ```bash
@@ -85,11 +119,20 @@ backend/job-platform/
 │   ├── db/              # 数据库
 │   │   ├── base.py      # Base模型
 │   │   └── session.py   # 会话管理
-│   ├── modules/user/    # 用户模块
-│   │   ├── models.py    # User数据模型
-│   │   ├── schemas.py   # Pydantic Schema
-│   │   ├── repository.py  # 数据访问层
-│   │   └── service.py   # 业务逻辑层
+│   ├── modules/         # 业务模块
+│   │   ├── user/                    # 用户、角色、登录态、个人信息
+│   │   ├── company_certification/  # 企业认证，含营业执照 OCR
+│   │   ├── resume/                  # 简历上传、解析、分块、画像
+│   │   ├── job/                     # 岗位发布、JD 解析、薪资处理
+│   │   ├── match/                   # 人岗匹配、规则配置、版本、实验、审计
+│   │   ├── application/             # 投递流程与状态流转
+│   │   ├── message/                 # 消息沟通
+│   │   ├── notification/            # 通知中心，含微信 provider
+│   │   ├── base_data/               # 基础数据与标签治理
+│   │   ├── seeker_profile/          # 求职画像
+│   │   ├── search/                  # 岗位/候选人搜索
+│   │   ├── ai_prompt/               # AI 提示词管理
+│   │   └── admin/review/stats/talent/push/
 │   ├── utils/           # 工具函数
 │   │   ├── encryption.py   # 字段加密（Fernet）
 │   │   ├── phone_hash.py   # 手机号哈希（HMAC-SHA256）
@@ -116,6 +159,8 @@ backend/job-platform/
 # 基础配置
 ENV=dev
 DEBUG=True
+LOG_LEVEL=INFO
+LOG_FORMAT=json
 
 # 数据库配置
 DATABASE_URL=postgresql+asyncpg://dev:dev123@localhost:5432/jobplatform_dev
@@ -140,6 +185,18 @@ OPENAI_API_KEY=
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
+### 生产启动门禁
+
+当 `ENV=prod` 时，应用会在导入/启动阶段 fail-fast，并要求：
+
+- `DEBUG=false`；
+- `SECRET_KEY`、`JWT_SECRET_KEY`、`PHONE_HASH_SECRET` 至少 32 字符且不能使用模板默认值；
+- 配置有效的 `ENCRYPTION_KEY`；
+- `DATABASE_URL` 使用 PostgreSQL，且不能指向 localhost、开发账号或开发库；
+- `ALLOWED_ORIGINS` 仅包含明确的 HTTPS 域名，不能使用 `*` 或本地地址。
+
+HTTP 响应会返回 `X-Request-ID`。可由调用方传入该请求头进行跨服务追踪；未传入时服务自动生成 UUID。应用日志默认按单行 JSON 输出，包含时间、级别、logger、message、request_id 和安全上下文，不记录请求体、查询参数、Authorization、Cookie、密码、token 或 secret。
+
 ---
 
 ## 📡 API端点
@@ -158,21 +215,21 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 - `GET /` - 根路径
 - `GET /health` - 健康检查
 
-详细API文档：http://localhost:8000/docs
+详细 API 文档：http://localhost:8003/docs
 
 ---
 
 ## 🔧 技术栈
 
-- **Web框架**: FastAPI 0.131.0
-- **ORM**: SQLAlchemy 2.1.0 (Async)
+- **Web 框架**：FastAPI 0.136.3
+- **ORM**：SQLAlchemy 2.0.50（异步）
 - **数据库**: PostgreSQL 16 + pgvector
-- **缓存**: Redis 7
-- **认证**: JWT (PyJWT)
-- **加密**: cryptography (Fernet + HMAC-SHA256)
-- **测试**: pytest + pytest-asyncio
-- **迁移**: Alembic
-- **AI**: LangChain + OpenAI
+- **缓存**：Redis 7（服务端）+ redis-py 8.0
+- **认证**：JWT（PyJWT）
+- **加密**：cryptography（Fernet + HMAC-SHA256）
+- **测试**：pytest 9 + pytest-asyncio
+- **迁移**：Alembic 1.18
+- **AI**：LangChain + OpenAI
 
 ---
 
@@ -192,16 +249,21 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
    - 基于Redis实现
 
 4. **配置校验**:
-   - 生产环境强制校验所有关键配置
+   - 生产环境强制校验 DEBUG、关键密钥、加密配置、PostgreSQL 和 HTTPS CORS
    - Fail-fast原则，启动时检测错误
+
+5. **可观测性与脱敏**:
+   - 每个 HTTP 请求生成或传播 `X-Request-ID`
+   - JSON 结构化日志记录方法、路径、状态码和耗时
+   - 敏感键递归脱敏，生命周期日志不输出数据库 URL 或凭据
 
 ---
 
 ## 📚 相关文档
 
 - [审核问题修复报告](docs/审核问题修复报告.md) - 详细修复记录
-- [PRD产品需求文档](../../PRD_空岗信息发布对接平台v2.md)
-- [需求清单](../../需求清单_语音记录20260603.md)
+- [PRD 产品需求文档](../../docs/product/PRD_空岗信息发布对接平台v2.md)
+- [需求清单](../../docs/product/需求清单_语音记录20260603.md)
 
 ---
 
@@ -244,5 +306,7 @@ poetry run isort app/ tests/
 ---
 
 ## 📄 License
+
+最后更新：2026-07-10
 
 Copyright © 2026 空岗平台团队

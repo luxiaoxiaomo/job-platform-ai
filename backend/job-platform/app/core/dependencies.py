@@ -12,6 +12,7 @@ from app.db.session import get_db
 
 # HTTP Bearer Token认证
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -68,6 +69,30 @@ async def get_current_user(
             detail=f"用户账号已{user.status}",
         )
 
+    return user
+
+
+async def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user when a valid bearer token is present, otherwise None."""
+    if credentials is None:
+        return None
+
+    payload = decode_access_token(credentials.credentials)
+    if payload is None:
+        return None
+
+    user_id: Optional[int] = payload.get("user_id")
+    if user_id is None:
+        return None
+
+    from app.modules.user.repository import UserRepository
+
+    user = await UserRepository.get_by_id(db, user_id)
+    if user is None or user.status != "active":
+        return None
     return user
 
 

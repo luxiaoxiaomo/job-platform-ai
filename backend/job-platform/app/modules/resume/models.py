@@ -1,7 +1,7 @@
 """
 Seeker resume data model.
 """
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -239,4 +239,241 @@ class ResumeChunk(Base):
         Index("idx_resume_chunks_upload_id", "upload_id"),
         Index("idx_resume_chunks_seeker_id", "seeker_id"),
         Index("idx_resume_chunks_embedding_status", "embedding_status"),
+    )
+
+
+class ResumeStructuredProfile(Base):
+    """Structured JSON result generated from one parse run."""
+
+    __tablename__ = "resume_structured_profiles"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Structured profile ID")
+    seeker_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, comment="Seeker user ID")
+    upload_id = Column(
+        Integer,
+        ForeignKey("resume_uploads.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Upload ID",
+    )
+    parse_run_id = Column(
+        Integer,
+        ForeignKey("resume_parse_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Parse run ID",
+    )
+    schema_version = Column(String(50), nullable=False, default="resume-structured-v1", comment="Structured schema")
+    prompt_config_id = Column(Integer, ForeignKey("ai_prompt_configs.id", ondelete="SET NULL"), nullable=True)
+    prompt_version = Column(Integer, nullable=True, comment="Prompt version")
+    source = Column(String(30), nullable=False, default="manual", comment="manual/rule/llm/import")
+    status = Column(String(30), nullable=False, default="draft", comment="draft/validated/needs_review/confirmed/rejected")
+    confidence_score = Column(Float, nullable=True, comment="Overall confidence 0-1")
+    structured_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, comment="Structured resume JSON")
+    tag_refs = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True, comment="Linked tag library snapshots")
+    validation_errors = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True, comment="Validation errors")
+    confirmed_at = Column(DateTime, nullable=True, comment="Confirmed at")
+    created_at = Column(DateTime, default=func.now(), nullable=False, comment="Created at")
+    updated_at = Column(
+        DateTime,
+        default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+        comment="Updated at",
+    )
+
+    seeker = relationship("User")
+    upload = relationship("ResumeUpload")
+    parse_run = relationship("ResumeParseRun")
+
+    __table_args__ = (
+        UniqueConstraint("parse_run_id", "schema_version", name="uq_resume_structured_parse_schema"),
+        Index("idx_resume_structured_profiles_seeker_created", "seeker_id", "created_at"),
+        Index("idx_resume_structured_profiles_parse_run_id", "parse_run_id"),
+        Index("idx_resume_structured_profiles_upload_id", "upload_id"),
+        Index("idx_resume_structured_profiles_status", "status"),
+    )
+
+
+class ResumeBasicInfo(Base):
+    """Normalized basic resume fields used for filtering."""
+
+    __tablename__ = "resume_basic_infos"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Basic info ID")
+    seeker_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, comment="Seeker user ID")
+    upload_id = Column(Integer, ForeignKey("resume_uploads.id", ondelete="CASCADE"), nullable=False)
+    parse_run_id = Column(Integer, ForeignKey("resume_parse_runs.id", ondelete="CASCADE"), nullable=False)
+    structured_profile_id = Column(
+        Integer,
+        ForeignKey("resume_structured_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    real_name = Column(String(100), nullable=True)
+    gender = Column(String(20), nullable=True)
+    age = Column(Integer, nullable=True)
+    phone = Column(String(50), nullable=True)
+    email = Column(String(255), nullable=True)
+    highest_education = Column(String(100), nullable=True)
+    work_years = Column(Float, nullable=True)
+    current_city = Column(String(100), nullable=True)
+    target_position = Column(String(120), nullable=True)
+    expected_salary = Column(String(100), nullable=True)
+    source = Column(String(30), nullable=False, default="parser")
+    confidence_score = Column(Float, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    source_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("structured_profile_id", name="uq_resume_basic_infos_profile"),
+        Index("idx_resume_basic_infos_seeker_id", "seeker_id"),
+        Index("idx_resume_basic_infos_profile_id", "structured_profile_id"),
+        Index("idx_resume_basic_infos_highest_education", "highest_education"),
+        Index("idx_resume_basic_infos_work_years", "work_years"),
+    )
+
+
+class ResumeEducation(Base):
+    """Normalized education experience."""
+
+    __tablename__ = "resume_educations"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Education ID")
+    seeker_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    upload_id = Column(Integer, ForeignKey("resume_uploads.id", ondelete="CASCADE"), nullable=False)
+    parse_run_id = Column(Integer, ForeignKey("resume_parse_runs.id", ondelete="CASCADE"), nullable=False)
+    structured_profile_id = Column(Integer, ForeignKey("resume_structured_profiles.id", ondelete="CASCADE"), nullable=False)
+    school_name = Column(String(200), nullable=True)
+    major = Column(String(200), nullable=True)
+    degree = Column(String(100), nullable=True)
+    education_level = Column(String(100), nullable=True)
+    start_date = Column(String(30), nullable=True)
+    end_date = Column(String(30), nullable=True)
+    is_full_time = Column(Boolean, nullable=True)
+    source = Column(String(30), nullable=False, default="parser")
+    confidence_score = Column(Float, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    source_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_resume_educations_seeker_id", "seeker_id"),
+        Index("idx_resume_educations_profile_id", "structured_profile_id"),
+        Index("idx_resume_educations_school_name", "school_name"),
+    )
+
+
+class ResumeWorkExperience(Base):
+    """Normalized work experience."""
+
+    __tablename__ = "resume_work_experiences"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Work experience ID")
+    seeker_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    upload_id = Column(Integer, ForeignKey("resume_uploads.id", ondelete="CASCADE"), nullable=False)
+    parse_run_id = Column(Integer, ForeignKey("resume_parse_runs.id", ondelete="CASCADE"), nullable=False)
+    structured_profile_id = Column(Integer, ForeignKey("resume_structured_profiles.id", ondelete="CASCADE"), nullable=False)
+    company_name = Column(String(200), nullable=True)
+    position = Column(String(200), nullable=True)
+    start_date = Column(String(30), nullable=True)
+    end_date = Column(String(30), nullable=True)
+    description = Column(Text, nullable=True)
+    source = Column(String(30), nullable=False, default="parser")
+    confidence_score = Column(Float, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    source_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_resume_work_experiences_seeker_id", "seeker_id"),
+        Index("idx_resume_work_experiences_profile_id", "structured_profile_id"),
+        Index("idx_resume_work_experiences_company_name", "company_name"),
+        Index("idx_resume_work_experiences_position", "position"),
+    )
+
+
+class ResumeProject(Base):
+    """Normalized project experience."""
+
+    __tablename__ = "resume_projects"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Project ID")
+    seeker_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    upload_id = Column(Integer, ForeignKey("resume_uploads.id", ondelete="CASCADE"), nullable=False)
+    parse_run_id = Column(Integer, ForeignKey("resume_parse_runs.id", ondelete="CASCADE"), nullable=False)
+    structured_profile_id = Column(Integer, ForeignKey("resume_structured_profiles.id", ondelete="CASCADE"), nullable=False)
+    project_name = Column(String(200), nullable=True)
+    role = Column(String(200), nullable=True)
+    start_date = Column(String(30), nullable=True)
+    end_date = Column(String(30), nullable=True)
+    description = Column(Text, nullable=True)
+    responsibility = Column(Text, nullable=True)
+    source = Column(String(30), nullable=False, default="parser")
+    confidence_score = Column(Float, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    source_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_resume_projects_seeker_id", "seeker_id"),
+        Index("idx_resume_projects_profile_id", "structured_profile_id"),
+        Index("idx_resume_projects_project_name", "project_name"),
+    )
+
+
+class ResumeSkill(Base):
+    """Normalized resume skill."""
+
+    __tablename__ = "resume_skills"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Skill ID")
+    seeker_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    upload_id = Column(Integer, ForeignKey("resume_uploads.id", ondelete="CASCADE"), nullable=False)
+    parse_run_id = Column(Integer, ForeignKey("resume_parse_runs.id", ondelete="CASCADE"), nullable=False)
+    structured_profile_id = Column(Integer, ForeignKey("resume_structured_profiles.id", ondelete="CASCADE"), nullable=False)
+    skill_name = Column(String(150), nullable=False)
+    skill_level = Column(String(80), nullable=True)
+    category = Column(String(80), nullable=True)
+    source = Column(String(30), nullable=False, default="parser")
+    confidence_score = Column(Float, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    source_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_resume_skills_seeker_id", "seeker_id"),
+        Index("idx_resume_skills_profile_id", "structured_profile_id"),
+        Index("idx_resume_skills_skill_name", "skill_name"),
+        Index("idx_resume_skills_category", "category"),
+    )
+
+
+class ResumeCertificate(Base):
+    """Normalized resume certificate."""
+
+    __tablename__ = "resume_certificates"
+
+    id = Column(Integer, primary_key=True, index=True, comment="Certificate ID")
+    seeker_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    upload_id = Column(Integer, ForeignKey("resume_uploads.id", ondelete="CASCADE"), nullable=False)
+    parse_run_id = Column(Integer, ForeignKey("resume_parse_runs.id", ondelete="CASCADE"), nullable=False)
+    structured_profile_id = Column(Integer, ForeignKey("resume_structured_profiles.id", ondelete="CASCADE"), nullable=False)
+    certificate_name = Column(String(200), nullable=False)
+    certificate_type = Column(String(100), nullable=True)
+    issuer = Column(String(200), nullable=True)
+    issued_at = Column(String(30), nullable=True)
+    source = Column(String(30), nullable=False, default="parser")
+    confidence_score = Column(Float, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    source_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_resume_certificates_seeker_id", "seeker_id"),
+        Index("idx_resume_certificates_profile_id", "structured_profile_id"),
+        Index("idx_resume_certificates_name", "certificate_name"),
     )

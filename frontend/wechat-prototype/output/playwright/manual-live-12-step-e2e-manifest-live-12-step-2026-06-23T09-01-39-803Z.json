@@ -1,0 +1,298 @@
+{
+  "run_id": "live-12-step-2026-06-23T09-01-39-803Z",
+  "script": "manual-live-12-step-e2e.cjs",
+  "started_at": "2026-06-23T09:01:39.805Z",
+  "completed_at": "2026-06-23T09:01:50.129Z",
+  "environment": "local-demo",
+  "api_base_url": "http://127.0.0.1:8004",
+  "app_base_url": "http://127.0.0.1:5174",
+  "manifest_kind": "manual-live-12-step-e2e-manifest",
+  "evidence_policy": {
+    "accepted": [
+      "real API-backed"
+    ],
+    "rejected": [
+      "mock-only"
+    ],
+    "note": "This script records only real API-backed steps as launch-candidate evidence."
+  },
+  "accounts": {
+    "admin": {
+      "phone": "13700137001",
+      "source": "local-demo-fixed"
+    },
+    "recruiter": {
+      "phone": "13905299810",
+      "role": "recruiter",
+      "source": "generated"
+    },
+    "seeker": {
+      "phone": "13805299810",
+      "role": "seeker",
+      "source": "generated"
+    }
+  },
+  "ids": {
+    "certification_id": 13,
+    "job_id": 24,
+    "resume_id": 11,
+    "parse_run_id": 28,
+    "match_audit_id": 967,
+    "rule_config_id": 24,
+    "application_id": 486,
+    "conversation_id": 3,
+    "contact_exchange_id": 3
+  },
+  "steps": [
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:40.712Z",
+      "step": 1,
+      "name": "recruiter_register",
+      "endpoint": "/api/v1/auth/register",
+      "result": {
+        "role": "recruiter"
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:40.888Z",
+      "step": 2,
+      "name": "company_certification_submit_and_approve",
+      "endpoint": "/api/v1/company-certifications/me",
+      "result": {
+        "certification_id": 13,
+        "status": "approved"
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:40.963Z",
+      "step": 3,
+      "name": "recruiter_create_job",
+      "endpoint": "/api/v1/jobs/me",
+      "result": {
+        "job_id": 24,
+        "status": "pending"
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:41.219Z",
+      "step": 4,
+      "name": "admin_review_job",
+      "endpoint": "/api/v1/jobs/admin/{job_id}/review",
+      "result": {
+        "job_id": 24,
+        "status": "active"
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:41.865Z",
+      "step": 5,
+      "name": "seeker_public_job_list",
+      "endpoint": "/api/v1/jobs/public",
+      "result": {
+        "job_id": 24
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:41.939Z",
+      "step": 6,
+      "name": "seeker_public_job_detail",
+      "endpoint": "/api/v1/jobs/public/{job_id}",
+      "result": {
+        "job_id": 24,
+        "view_count": 1
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:42.406Z",
+      "step": 7,
+      "name": "seeker_resume_upload_and_profile_confirm",
+      "endpoint": "/api/v1/resumes/me/upload",
+      "result": {
+        "resume_id": 11,
+        "parse_run_id": 28
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:42.565Z",
+      "step": 8,
+      "name": "seeker_match_job",
+      "endpoint": "/api/v1/matches/jobs/{job_id}/me",
+      "result": {
+        "audit_id": 967,
+        "rule_config_id": 24
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:42.740Z",
+      "step": 9,
+      "name": "seeker_favorite_and_apply",
+      "endpoint": "/api/v1/applications",
+      "result": {
+        "application_id": 486,
+        "status": "submitted"
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:43.140Z",
+      "step": 10,
+      "name": "conversation_open_and_reply",
+      "endpoint": "/api/v1/messages/conversations/open",
+      "result": {
+        "conversation_id": 3
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:43.394Z",
+      "step": 11,
+      "name": "structured_contact_exchange_accept",
+      "endpoint": "/api/v1/messages/contact-exchanges",
+      "result": {
+        "exchange_id": 3,
+        "status": "accepted",
+        "contact_visibility": "accepted structured contact visibility",
+        "contacts": [
+          "seeker",
+          "recruiter"
+        ]
+      }
+    },
+    {
+      "evidence_type": "real API-backed",
+      "source": "api",
+      "recorded_at": "2026-06-23T09:01:43.722Z",
+      "step": 12,
+      "name": "business_loop_and_match_quality_reread",
+      "endpoint": "/api/v1/applications/recruiter/stats/business-loop",
+      "result": {
+        "successful_connection_count": 1,
+        "match_count": 246
+      }
+    }
+  ],
+  "api_checks": [
+    {
+      "name": "seeker_contact_exchange_reread",
+      "recorded_at": "2026-06-23T09:01:43.389Z",
+      "endpoint": "/api/v1/messages/conversations/{conversation_id}",
+      "contact_exchange": {
+        "id": 3,
+        "status": "accepted",
+        "visible_contact_roles": [
+          "seeker",
+          "recruiter"
+        ]
+      }
+    },
+    {
+      "name": "recruiter_contact_exchange_reread",
+      "recorded_at": "2026-06-23T09:01:43.392Z",
+      "endpoint": "/api/v1/messages/conversations/{conversation_id}",
+      "contact_exchange": {
+        "id": 3,
+        "status": "accepted",
+        "visible_contact_roles": [
+          "seeker",
+          "recruiter"
+        ]
+      }
+    },
+    {
+      "name": "business_loop_recruiter",
+      "recorded_at": "2026-06-23T09:01:43.717Z",
+      "endpoint": "/api/v1/applications/recruiter/stats/business-loop",
+      "summary": {
+        "job_count": 1,
+        "view_count": 1,
+        "conversation_count": 1,
+        "application_count": 1,
+        "submitted_count": 1,
+        "processed_count": 0,
+        "viewed_count": 0,
+        "interview_invited_count": 0,
+        "rejected_count": 0,
+        "hired_count": 0,
+        "contact_exchange_count": 1,
+        "successful_connection_count": 1,
+        "pending_exchange_count": 0,
+        "declined_exchange_count": 0,
+        "view_to_conversation_rate": 100,
+        "conversation_to_application_rate": 100,
+        "application_process_rate": 0,
+        "application_to_connection_rate": 100,
+        "successful_connection_definition": "contact_exchange.status = accepted"
+      }
+    },
+    {
+      "name": "business_loop_admin",
+      "recorded_at": "2026-06-23T09:01:43.719Z",
+      "endpoint": "/api/v1/applications/admin/stats/business-loop",
+      "summary": {
+        "job_count": 18,
+        "view_count": 73,
+        "conversation_count": 3,
+        "application_count": 126,
+        "submitted_count": 125,
+        "processed_count": 1,
+        "viewed_count": 1,
+        "interview_invited_count": 0,
+        "rejected_count": 0,
+        "hired_count": 0,
+        "contact_exchange_count": 3,
+        "successful_connection_count": 3,
+        "pending_exchange_count": 0,
+        "declined_exchange_count": 0,
+        "view_to_conversation_rate": 4.1,
+        "conversation_to_application_rate": 4200,
+        "application_process_rate": 0.8,
+        "application_to_connection_rate": 2.4,
+        "successful_connection_definition": "contact_exchange.status = accepted"
+      }
+    },
+    {
+      "name": "match_quality_summary",
+      "recorded_at": "2026-06-23T09:01:43.721Z",
+      "endpoint": "/api/v1/matches/quality/summary",
+      "summary": {
+        "match_count": 246,
+        "avg_score": 84.13,
+        "high_count": 206,
+        "medium_count": 0,
+        "low_count": 40,
+        "favorite_count": 124,
+        "application_count": 124,
+        "visit_count": 124,
+        "favorite_rate": 50.41,
+        "application_rate": 50.41,
+        "visit_rate": 50.41,
+        "low_score_rate": 16.26,
+        "sample_status": "usable"
+      }
+    }
+  ],
+  "screenshots": [
+    "manual-live-12-step-match-quality-live-12-step-2026-06-23T09-01-39-803Z.png"
+  ],
+  "known_gaps": []
+}

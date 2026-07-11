@@ -2,6 +2,7 @@
 应用配置管理
 从环境变量读取配置
 """
+from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +15,8 @@ class Settings(BaseSettings):
     ENV: str = "dev"  # dev/test/prod
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-change-in-production"
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"
 
     # 数据库配置
     DATABASE_URL: str = "postgresql+asyncpg://dev:dev123@localhost:5432/jobplatform_dev"
@@ -53,12 +56,29 @@ class Settings(BaseSettings):
 
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+    UPLOAD_DIR: str = str(Path(__file__).resolve().parents[2] / "uploads")
 
     # OCR configuration
     OCR_PROVIDER: str = "mock"  # mock/rapidocr
     OCR_CONFIDENCE_THRESHOLD: float = 0.5
     OCR_PDF_MAX_PAGES: int = 3
     OCR_PDF_RENDER_SCALE: float = 2.0
+
+    # WeChat notification preparation
+    # dry_run keeps local behavior testable without real credentials.
+    # live calls the WeChat service account template-message API.
+    # disabled closes due push tasks without attempting external delivery.
+    WECHAT_PUSH_MODE: str = "dry_run"  # disabled/dry_run/live
+    WECHAT_API_BASE_URL: str = "https://api.weixin.qq.com"
+    WECHAT_APP_ID: str = ""
+    WECHAT_APP_SECRET: str = ""
+    WECHAT_TEMPLATE_ACTION_BASE_URL: str = ""
+    WECHAT_TEMPLATE_DEFAULT: str = ""
+    WECHAT_TEMPLATE_JOB_REVIEW: str = ""
+    WECHAT_TEMPLATE_MESSAGE: str = ""
+    WECHAT_TEMPLATE_APPLICATION: str = ""
+    WECHAT_TEMPLATE_APPLICATION_STATUS: str = ""
+    WECHAT_TEMPLATE_MATCH: str = ""
 
     # Celery配置
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
@@ -73,26 +93,41 @@ class Settings(BaseSettings):
 
 
 # 全局配置实例
-settings = Settings()
+def validate_production_settings(value: Settings) -> None:
+    """Fail fast when production configuration is unsafe."""
+    if value.ENV != "prod":
+        return
 
-# 生产环境配置校验
-if settings.ENV == "prod":
-    # 检查关键密钥不能使用默认值
-    if settings.SECRET_KEY == "your-secret-key-change-in-production":
-        raise ValueError("生产环境必须配置安全的SECRET_KEY")
+    if value.DEBUG:
+        raise ValueError("生产环境必须关闭DEBUG")
 
-    if settings.JWT_SECRET_KEY == "your-jwt-secret-key-change-in-production":
-        raise ValueError("生产环境必须配置安全的JWT_SECRET_KEY")
+    secret_fields = {
+        "SECRET_KEY": value.SECRET_KEY,
+        "JWT_SECRET_KEY": value.JWT_SECRET_KEY,
+        "PHONE_HASH_SECRET": value.PHONE_HASH_SECRET,
+    }
+    for field_name, secret in secret_fields.items():
+        if len(secret.strip()) < 32 or "change-in-production" in secret:
+            raise ValueError(f"生产环境必须配置安全的{field_name}")
 
-    if settings.PHONE_HASH_SECRET == "your-phone-hash-secret-change-in-production":
-        raise ValueError("生产环境必须配置安全的PHONE_HASH_SECRET")
-
-    if not settings.ENCRYPTION_KEY:
+    if not value.ENCRYPTION_KEY:
         raise ValueError("生产环境必须配置ENCRYPTION_KEY")
 
-    if "dev" in settings.DATABASE_URL.lower():
-        raise ValueError("生产环境不能使用dev数据库配置")
-
-    # 检查数据库URL不能使用默认值
-    if "dev:dev123" in settings.DATABASE_URL or "localhost" in settings.DATABASE_URL:
+    database_url = value.DATABASE_URL.lower()
+    if not database_url.startswith(("postgresql://", "postgresql+asyncpg://")):
+        raise ValueError("生产环境数据库必须使用PostgreSQL")
+    if "dev:dev123" in database_url or "localhost" in database_url or "/jobplatform_dev" in database_url:
         raise ValueError("生产环境不能使用默认数据库配置")
+
+    if not value.ALLOWED_ORIGINS:
+        raise ValueError("生产环境必须配置ALLOWED_ORIGINS")
+    for origin in value.ALLOWED_ORIGINS:
+        normalized = origin.strip().lower()
+        if normalized == "*" or "localhost" in normalized or "127.0.0.1" in normalized:
+            raise ValueError("生产环境ALLOWED_ORIGINS不能包含通配符或本地地址")
+        if not normalized.startswith("https://"):
+            raise ValueError("生产环境ALLOWED_ORIGINS必须使用HTTPS")
+
+
+settings = Settings()
+validate_production_settings(settings)

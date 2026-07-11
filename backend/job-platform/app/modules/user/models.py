@@ -1,8 +1,7 @@
 """
 User数据模型
 """
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Enum as SQLEnum, Index
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, Index, Integer, String, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -25,6 +24,10 @@ class User(Base):
         comment="角色：seeker应聘者/recruiter招聘者/admin管理员"
     )
     avatar_url = Column(String(500), nullable=True, comment="头像URL")
+    wechat_openid = Column(String(128), nullable=True, comment="微信OpenID（服务号/小程序维度）")
+    wechat_unionid = Column(String(128), nullable=True, comment="微信UnionID")
+    wechat_app_id = Column(String(64), nullable=True, comment="微信应用ID")
+    wechat_bound_at = Column(DateTime, nullable=True, comment="微信绑定时间")
     status = Column(
         SQLEnum("active", "inactive", "banned", name="user_status"),
         default="active",
@@ -42,9 +45,11 @@ class User(Base):
 
     # 索引
     __table_args__ = (
+        UniqueConstraint("wechat_app_id", "wechat_openid", name="uq_users_wechat_app_openid"),
         Index("idx_user_phone_hash", "phone_hash"),
         Index("idx_user_status", "status"),
         Index("idx_user_role", "role"),
+        Index("idx_user_wechat_openid", "wechat_openid"),
     )
 
     def __repr__(self):

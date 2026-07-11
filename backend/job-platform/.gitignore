@@ -67,3 +67,5 @@ tmp/
 
 # Alembic
 alembic/versions/*.pyc
+.uv-cache/
+.pytest-tmp/

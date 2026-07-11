@@ -48,3 +48,24 @@ Thumbs.db
 
 # Tool-local metadata
 .claude/
+.codex/
+.tmp/
+frontend/wechat-prototype/.npm-cache/
+frontend/wechat-prototype/test-results/
+# Local goal-mode work logs
+# These are per-session agent work artifacts, not source or release evidence.
+goal-*/
+
+# Tool caches and transient test output
+.uv-cache/
+.pytest-tmp/
+.npm-cache/
+test-results/
+playwright-report/
+.worktrees/
+# Generated product video media
+frontend/product-video/renders/
+frontend/product-video/snapshots/
+frontend/product-video/assets/**/*.wav
+frontend/product-video/assets/**/*.mp3
+frontend/product-video/assets/**/*.mp4

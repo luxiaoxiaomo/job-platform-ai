@@ -2,7 +2,7 @@
 User Repository - 数据访问层
 """
 from typing import List, Optional
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.user.models import User
@@ -101,7 +101,7 @@ class UserRepository:
         skip: int = 0,
         limit: int = 20,
         role: Optional[str] = None
-    ) -> List[User]:
+    ) -> tuple[List[User], int]:
         """
         查询用户列表
 
@@ -114,12 +114,21 @@ class UserRepository:
         Returns:
             用户列表
         """
-        query = select(User)
+        filters = []
 
         if role:
-            query = query.where(User.role == role)
+            filters.append(User.role == role)
 
+        total_query = select(func.count()).select_from(User)
+        if filters:
+            total_query = total_query.where(*filters)
+        total_result = await db.execute(total_query)
+        total = int(total_result.scalar_one() or 0)
+
+        query = select(User)
+        if filters:
+            query = query.where(*filters)
         query = query.offset(skip).limit(limit).order_by(User.created_at.desc())
 
         result = await db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all()), total

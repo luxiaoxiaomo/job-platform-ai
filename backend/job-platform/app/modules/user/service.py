@@ -1,16 +1,21 @@
 """
 User Service - 业务逻辑层
 """
+import logging
 from typing import Tuple
+
+from cryptography.fernet import InvalidToken
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.user.models import User
-from app.modules.user.schemas import UserRegister, UserLogin, UserUpdate
+from app.modules.user.schemas import UserListResponse, UserRegister, UserLogin, UserResponse, UserUpdate
 from app.modules.user.repository import UserRepository
 from app.core.security import hash_password, verify_password, create_access_token
 from app.utils.encryption import encryptor
 from app.utils.phone_hash import hash_phone
+
+logger = logging.getLogger(__name__)
 
 
 class UserService:
@@ -133,6 +138,49 @@ class UserService:
                 detail="用户不存在"
             )
         return user
+
+    @staticmethod
+    def to_response(user: User) -> UserResponse:
+        try:
+            phone = encryptor.decrypt(user.phone_encrypted)
+        except InvalidToken:
+            logger.warning(
+                "user phone ciphertext cannot be decrypted with the active key",
+                extra={"context": {"user_id": user.id, "role": user.role}},
+            )
+            phone = "手机号不可用"
+
+        return UserResponse(
+            id=user.id,
+            phone=phone,
+            display_name=user.display_name,
+            role=user.role,
+            avatar_url=user.avatar_url,
+            wechat_bound=bool(user.wechat_openid),
+            status=user.status,
+            created_at=user.created_at,
+        )
+
+    @staticmethod
+    async def list_for_admin(
+        db: AsyncSession,
+        current_user: User,
+        *,
+        skip: int = 0,
+        limit: int = 20,
+        role: str | None = None,
+    ) -> UserListResponse:
+        if current_user.role != "admin":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can list users")
+        if role is not None and role not in {"seeker", "recruiter", "admin"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user role")
+        users, total = await UserRepository.list(db, skip=skip, limit=limit, role=role)
+        return UserListResponse(
+            items=[UserService.to_response(user) for user in users],
+            total=total,
+            skip=skip,
+            limit=limit,
+        )
 
     @staticmethod
     async def update_profile(

@@ -42,7 +42,7 @@ export async function register(data) {
  * @returns {Promise<{access_token: string, token_type: string, user: object}>}
  */
 export async function login(phone, password) {
-  const response = await post('/api/v1/auth/login', { phone, password })
+  const response = await post('/api/v1/auth/login', { phone, password }, { skipAuthRedirect: true })
 
   // 保存token和用户信息
   if (response.access_token) {

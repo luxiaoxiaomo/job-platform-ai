@@ -1,97 +1,217 @@
-import React, { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { NavBar, AIBadge, AICard, useToast } from '../components/ui.jsx'
 import { RecruiterBottomNav } from './RecruiterBottomNav.jsx'
-import { ScoreBar } from '../components/charts.jsx'
-import { getJobVisitors, myJobs, pickColor } from '../mock/data.js'
+import { getMyJobVisitors } from '../services/index.js'
 
-/* ============ 浏览量穿透：某岗位的访客列表 ============ */
+function formatDateTime(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function avatarColor(id) {
+  const colors = ['#07C160', '#10AEFF', '#FA9D3B', '#7C5CFC', '#FF6B6B', '#36C5C5']
+  return colors[Number(id || 0) % colors.length]
+}
+
 export function RecruiterVisitors() {
   const { jobId } = useParams()
-  const navigate = useNavigate()
   const toast = useToast()
-  const job = myJobs.find(j => String(j.id) === String(jobId)) || myJobs[0]
-  const visitors = getJobVisitors(jobId)
-  const [sort, setSort] = useState('match') // match | views | time
+  const [sort, setSort] = useState('intent')
   const [selected, setSelected] = useState(new Set())
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const sorted = [...visitors].sort((a, b) => {
-    if (sort === 'match') return b.matchScore - a.matchScore
-    if (sort === 'views') return b.views - a.views
-    return 0
-  })
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    getMyJobVisitors(jobId, { sort, limit: 100 })
+      .then(result => {
+        if (!alive) return
+        setData(result)
+        setError('')
+      })
+      .catch(err => {
+        if (!alive) return
+        setData(null)
+        setError(err.message || '访客数据加载失败')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
 
-  const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
-  const inviteAll = () => {
-    const count = selected.size || sorted.length
-    toast(`已对 ${count} 人发起邀请沟通`, '📨')
+    return () => { alive = false }
+  }, [jobId, sort])
+
+  const visitors = data?.items || []
+  const highIntentCount = useMemo(() => visitors.filter(item => item.high_intent).length, [visitors])
+  const conversationCount = useMemo(() => visitors.filter(item => item.has_conversation).length, [visitors])
+
+  const toggle = (id) => {
+    setSelected(current => {
+      const next = new Set(current)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const inviteSelected = () => {
+    const count = selected.size || visitors.length
+    if (count === 0) {
+      toast('暂无可邀请访客')
+      return
+    }
+    toast(`已标记 ${count} 位访客为待跟进`)
   }
 
   return (
     <>
-      <NavBar title="访客详情" />
+      <NavBar title="访客穿透" />
       <div className="page has-tabbar">
-        {/* 头部概览 */}
         <div style={{ background: '#fff', padding: '12px 16px', borderBottom: '0.5px solid var(--wx-line-light)' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{job.name}</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+            {loading ? '加载岗位访客...' : data?.job_title || `岗位 #${jobId}`}
+          </div>
           <div className="row gap12 tiny muted">
-            <span>👁 {job.views} 次浏览</span>
-            <span>👤 {job.uv} 人看过</span>
-            <span>💬 {job.msgs} 人留言</span>
+            <span>{loading ? '...' : data?.total_views || 0} 次浏览</span>
+            <span>{loading ? '...' : data?.unique_visitors || 0} 位访客</span>
+            <span>{loading ? '...' : conversationCount} 位已咨询</span>
           </div>
         </div>
 
-        {/* 排序 + 操作 */}
-        <div className="row between" style={{ background: '#fff', padding: '8px 16px', borderBottom: '0.5px solid var(--wx-line-light)' }}>
-          <div className="row gap6">
-            {[{ k: 'match', l: '按匹配度' }, { k: 'views', l: '按浏览次数' }].map(s => (
-              <span key={s.k} className={`tag ${sort === s.k ? 'tag-green' : 'tag-gray'}`}
-                style={{ cursor: 'pointer', fontSize: 12 }}
-                onClick={() => setSort(s.k)}>{s.l}</span>
-            ))}
-          </div>
-          <span className="tiny" style={{ color: 'var(--wx-green-dark)', cursor: 'pointer' }} onClick={() => { toast('全选模式') }}>全选</span>
-        </div>
-
-        {/* 访客列表 */}
-        <div className="cell-group" style={{ marginTop: 0 }}>
-          {sorted.map(v => (
-            <div key={v.id} className="cell" style={{ alignItems: 'flex-start', padding: '12px 16px' }}>
-              <span style={{ marginRight: 10, fontSize: 18, color: selected.has(v.id) ? 'var(--wx-green)' : 'var(--wx-text-light)', flexShrink: 0 }}
-                onClick={(e) => { e.stopPropagation(); toggle(v.id) }}>
-                {selected.has(v.id) ? '☑' : '☐'}
-              </span>
-              <span className="avatar" style={{ width: 40, height: 40, borderRadius: 8, background: pickColor(v.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, marginRight: 10, flexShrink: 0, cursor: 'pointer' }}
-                onClick={() => navigate('/recruiter/talent/' + v.id)}>{v.name[0]}</span>
-              <div className="grow" style={{ overflow: 'hidden' }}>
-                <div className="row between">
-                  <span style={{ fontWeight: 500, cursor: 'pointer' }} onClick={() => navigate('/recruiter/talent/' + v.id)}>{v.name}{v.virtual && <span className="tag tag-gray" style={{ marginLeft: 4, fontSize: 10 }}>虚拟名</span>}</span>
-                  <span className="tag tag-green" style={{ fontSize: 12 }}>匹配 {v.matchScore}%</span>
-                </div>
-                <div className="row gap6" style={{ marginTop: 4, flexWrap: 'wrap' }}>
-                  {v.tags.map(t => <span key={t} className="tag tag-green" style={{ fontSize: 10, padding: '1px 6px' }}>{t}</span>)}
-                </div>
-                <div className="row between tiny muted" style={{ marginTop: 4 }}>
-                  <span>浏览 {v.views} 次 · {v.lastView}</span>
-                  <span>{v.hasChatted ? '💬 已沟通' : '未互动'}</span>
-                </div>
-              </div>
+        <div className="row" style={{ background: '#fff', padding: 16, gap: 0, borderBottom: '0.5px solid var(--wx-line-light)' }}>
+          {[
+            ['总浏览', loading ? '...' : data?.total_views || 0],
+            ['独立访客', loading ? '...' : data?.unique_visitors || 0],
+            ['高意向', loading ? '...' : highIntentCount],
+            ['已咨询', loading ? '...' : conversationCount],
+          ].map(([label, value]) => (
+            <div key={label} className="grow center">
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--wx-blue)' }}>{value}</div>
+              <div className="tiny muted" style={{ marginTop: 2 }}>{label}</div>
             </div>
           ))}
         </div>
 
-        {visitors.length === 0 && (
-          <div className="empty" style={{ paddingTop: 80 }}><span className="tiny muted">暂无访客数据</span></div>
+        <div className="row between" style={{ background: '#fff', padding: '8px 16px', borderBottom: '0.5px solid var(--wx-line-light)' }}>
+          <div className="row gap6">
+            {[
+              { key: 'intent', label: '按意向' },
+              { key: 'views', label: '按次数' },
+              { key: 'time', label: '按最近' },
+            ].map(item => (
+              <span
+                key={item.key}
+                className={`tag ${sort === item.key ? 'tag-green' : 'tag-gray'}`}
+                style={{ cursor: 'pointer', fontSize: 12 }}
+                onClick={() => setSort(item.key)}
+              >
+                {item.label}
+              </span>
+            ))}
+          </div>
+          <span
+            className="tiny"
+            style={{ color: 'var(--wx-green-dark)', cursor: 'pointer' }}
+            onClick={() => setSelected(new Set(visitors.map(item => item.seeker_id)))}
+          >
+            全选
+          </span>
+        </div>
+
+        {error && (
+          <div style={{ margin: '12px 16px', padding: 12, borderRadius: 8, background: '#FFF5F5', color: 'var(--wx-red)', fontSize: 13 }}>
+            {error}
+          </div>
         )}
 
-        <AICard title="AI 访客洞察" tip="AI 分析，仅供参考">
-          浏览该岗位的 {visitors.length} 人中，{visitors.filter(v => v.hasChatted).length} 人已主动留言。AI 匹配度 ≥ 80% 的有 {visitors.filter(v => v.matchScore >= 80).length} 人，建议优先邀请沟通。
+        {loading && (
+          <div className="center muted" style={{ padding: '48px 0', fontSize: 13 }}>正在读取真实访客数据...</div>
+        )}
+
+        {!loading && visitors.length === 0 && !error && (
+          <div className="empty" style={{ paddingTop: 80 }}>
+            <span className="tiny muted">暂无已登录求职者访客。匿名浏览只计入总浏览，不进入访客名单。</span>
+          </div>
+        )}
+
+        {!loading && visitors.length > 0 && (
+          <div className="cell-group" style={{ marginTop: 0 }}>
+            {visitors.map(visitor => (
+              <div key={visitor.seeker_id} className="cell" style={{ alignItems: 'flex-start', padding: '12px 16px' }}>
+                <span
+                  style={{
+                    marginRight: 10,
+                    fontSize: 18,
+                    color: selected.has(visitor.seeker_id) ? 'var(--wx-green)' : 'var(--wx-text-light)',
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => toggle(visitor.seeker_id)}
+                >
+                  {selected.has(visitor.seeker_id) ? '●' : '○'}
+                </span>
+                <span
+                  className="avatar"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 8,
+                    background: avatarColor(visitor.seeker_id),
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    marginRight: 10,
+                    flexShrink: 0,
+                  }}
+                >
+                  {(visitor.seeker_display_name || '?')[0]}
+                </span>
+                <div className="grow" style={{ overflow: 'hidden' }}>
+                  <div className="row between">
+                    <span style={{ fontWeight: 500 }}>{visitor.seeker_display_name}</span>
+                    <span className={visitor.high_intent ? 'tag tag-green' : 'tag tag-gray'} style={{ fontSize: 12 }}>
+                      意向 {visitor.intent_score}
+                    </span>
+                  </div>
+                  <div className="row gap6" style={{ marginTop: 4, flexWrap: 'wrap' }}>
+                    {(visitor.tags || []).map(tag => (
+                      <span key={tag} className={tag === '高意向' ? 'tag tag-green' : 'tag tag-gray'} style={{ fontSize: 10, padding: '1px 6px' }}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="row between tiny muted" style={{ marginTop: 4 }}>
+                    <span>浏览 {visitor.view_count} 次 · 最近 {formatDateTime(visitor.last_viewed_at)}</span>
+                    <span>{visitor.has_application ? '已投递' : visitor.has_conversation ? '已咨询' : '未互动'}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <AICard title="AI 访客洞察" tip="基于真实访问、咨询和投递行为计算">
+          {visitors.length > 0
+            ? `当前岗位有 ${data?.unique_visitors || 0} 位已登录访客，其中 ${highIntentCount} 位为高意向，${conversationCount} 位已发起咨询。优先跟进多次浏览、已咨询或已投递的人。`
+            : '当前还没有可穿透到人的访客记录。求职者登录后打开岗位详情，会自动进入这里。'}
         </AICard>
       </div>
 
       <div className="page-foot">
-        <button className="btn btn-primary" onClick={inviteAll}>
-          📨 对 {selected.size || sorted.length} 人批量邀请沟通
+        <button className="btn btn-primary" onClick={inviteSelected}>
+          标记 {selected.size || visitors.length} 位待跟进
         </button>
       </div>
       <RecruiterBottomNav />

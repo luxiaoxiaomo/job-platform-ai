@@ -1,13 +1,15 @@
 """
 用户管理API：获取、更新用户信息
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.modules.user.models import User
-from app.modules.user.schemas import UserResponse, UserUpdate
+from app.modules.user.schemas import UserListResponse, UserResponse, UserUpdate
 from app.modules.user.service import UserService
 from app.utils.encryption import encryptor
 
@@ -62,6 +64,18 @@ async def update_current_user(
         status=updated_user.status,
         created_at=updated_user.created_at
     )
+
+
+@router.get("/admin", response_model=UserListResponse)
+async def list_users_for_admin(
+    role: Optional[str] = Query(None, description="seeker/recruiter/admin"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin user list for resource management."""
+    return await UserService.list_for_admin(db, current_user, skip=skip, limit=limit, role=role)
 
 
 @router.get("/{user_id}", response_model=UserResponse)
