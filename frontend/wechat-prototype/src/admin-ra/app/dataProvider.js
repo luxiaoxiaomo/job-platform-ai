@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../../services/api.js'
 const RESOURCE_PATH = {
   'match-rules': '/api/v1/matches/rule-configs',
   'rule-experiments': '/api/v1/matches/rule-experiments',
+  'intelligent-strategies': '/api/v1/matches/intelligent/strategies',
 }
 
 function getResourcePath(resource) {
@@ -90,6 +91,39 @@ function validateVersionPayload(payload) {
   return payload
 }
 
+function numericValue(value, fallback = 0) {
+  if (value === '' || value === undefined || value === null) return fallback
+  const next = Number(value)
+  return Number.isFinite(next) ? next : fallback
+}
+
+function toIntelligentStrategyPayload(data = {}) {
+  const hybridWeights = {
+    rule_score: numericValue(data.rule_score, 0.7),
+    vector_score: numericValue(data.vector_score, 0.2),
+    profile_coverage_score: numericValue(data.profile_coverage_score, 0.1),
+    behavior_quality_score: numericValue(data.behavior_quality_score, 0),
+  }
+  const total = Object.values(hybridWeights).reduce((sum, value) => sum + value, 0)
+  if (Math.abs(total - 1) > 0.001) {
+    throw new Error('hybrid_weights_total_must_equal_1')
+  }
+
+  return {
+    name: data.name,
+    description: data.description || '',
+    base_rule_config_id: Number(data.base_rule_config_id),
+    vector_recall: {
+      enabled: Boolean(data.vector_recall_enabled),
+      top_n: numericValue(data.vector_recall_top_n, 100),
+      min_similarity: numericValue(data.vector_recall_min_similarity, 0.62),
+      candidate_source: data.vector_recall_candidate_source || 'job_resume_profile',
+    },
+    hybrid_weights: hybridWeights,
+    fallback_policy: data.fallback_policy || 'rule_baseline',
+  }
+}
+
 export const dataProvider = {
   async getList(resource, params) {
     const base = getResourcePath(resource)
@@ -105,6 +139,14 @@ export const dataProvider = {
     }
     if (filter.template_key) {
       query.template_key = filter.template_key
+    }
+    if (resource === 'intelligent-strategies') {
+      if (filter.status) {
+        query.status = filter.status
+      }
+      if (filter.base_rule_config_id) {
+        query.base_rule_config_id = Number(filter.base_rule_config_id)
+      }
     }
 
     const qs = new URLSearchParams(
@@ -122,16 +164,24 @@ export const dataProvider = {
   },
 
   async update(resource, params) {
-    if (resource !== 'match-rules') {
-      throw new Error(`Update is not supported for ${resource}`)
-    }
     const base = getResourcePath(resource)
-    const payload = validateVersionPayload(toVersionPayload(params.data, params.previousData))
-    const { json } = await httpClient(`${API_BASE_URL}${base}/${params.id}/versions`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-    return { data: json.config || json }
+    if (resource === 'match-rules') {
+      const payload = validateVersionPayload(toVersionPayload(params.data, params.previousData))
+      const { json } = await httpClient(`${API_BASE_URL}${base}/${params.id}/versions`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      return { data: json.config || json }
+    }
+    if (resource === 'intelligent-strategies') {
+      const payload = toIntelligentStrategyPayload(params.data)
+      const { json } = await httpClient(`${API_BASE_URL}${base}/${params.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+      return { data: json }
+    }
+    throw new Error(`Update is not supported for ${resource}`)
   },
 
   async getMany(resource, params) {
@@ -153,17 +203,23 @@ export const dataProvider = {
 
   async create(resource, params) {
     const base = getResourcePath(resource)
-    const body = JSON.stringify(params.data || {})
     if (resource === 'match-rules') {
       const { json } = await httpClient(`${API_BASE_URL}${base}/templates`, {
         method: 'POST',
-        body,
+        body: JSON.stringify(params.data || {}),
       })
       return { data: json.config || json }
     }
+    if (resource === 'intelligent-strategies') {
+      const { json } = await httpClient(`${API_BASE_URL}${base}`, {
+        method: 'POST',
+        body: JSON.stringify(toIntelligentStrategyPayload(params.data)),
+      })
+      return { data: json }
+    }
     const { json } = await httpClient(`${API_BASE_URL}${base}`, {
       method: 'POST',
-      body,
+      body: JSON.stringify(params.data || {}),
     })
     return { data: json.config || json }
   },
@@ -250,6 +306,27 @@ export const dataProvider = {
       Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== ''))
     ).toString()
     const { json } = await httpClient(`${API_BASE_URL}/api/v1/matches/quality/summary${qs ? `?${qs}` : ''}`)
+    return json
+  },
+
+  async cloneIntelligentStrategy(strategyId, payload) {
+    const { json } = await httpClient(`${API_BASE_URL}/api/v1/matches/intelligent/strategies/${strategyId}/clone`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+    return json
+  },
+
+  async runIntelligentEvaluation(strategyId, payload) {
+    const { json } = await httpClient(`${API_BASE_URL}/api/v1/matches/intelligent/strategies/${strategyId}/evaluations`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+    return json
+  },
+
+  async getIntelligentEvaluation(evaluationId) {
+    const { json } = await httpClient(`${API_BASE_URL}/api/v1/matches/intelligent/evaluations/${evaluationId}`)
     return json
   },
 

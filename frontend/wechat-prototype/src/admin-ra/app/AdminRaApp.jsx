@@ -5,6 +5,7 @@ import RuleIcon from '@mui/icons-material/Rule'
 import ScienceIcon from '@mui/icons-material/Science'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import QueryStatsIcon from '@mui/icons-material/QueryStats'
+import IntelligentIcon from '@mui/icons-material/PsychologyAlt'
 import { Route } from 'react-router-dom'
 import { authProvider } from './authProvider.js'
 import { dataProvider } from './dataProvider.js'
@@ -17,6 +18,9 @@ import MatchRuleList from '../resources/match-rules/list.jsx'
 import MatchRuleRelease from '../resources/match-rules/release.jsx'
 import MatchRuleShow from '../resources/match-rules/show.jsx'
 import RuleExperimentList from '../resources/rule-experiments/list.jsx'
+import IntelligentStrategyForm from '../resources/intelligent-strategies/form.jsx'
+import IntelligentStrategyList from '../resources/intelligent-strategies/list.jsx'
+import IntelligentStrategyShow from '../resources/intelligent-strategies/show.jsx'
 
 const theme = createTheme({
   palette: {
@@ -34,6 +38,7 @@ const AppMenu = () => (
     <Menu.ResourceItem name="match-rules" primaryText="Match Rules" leftIcon={<RuleIcon />} />
     <Menu.Item to="/admin-ra/match-audits" primaryText="Match Audits" leftIcon={<FactCheckIcon />} />
     <Menu.Item to="/admin-ra/match-quality" primaryText="Match Quality" leftIcon={<QueryStatsIcon />} />
+    <Menu.Item to="/admin-ra/intelligent-matching/strategies" primaryText="Intelligent Matching" leftIcon={<IntelligentIcon />} />
     <Menu.Item to="/admin-ra/rule-experiments" primaryText="Rule AB Tests" leftIcon={<ScienceIcon />} />
   </Menu>
 )
@@ -66,6 +71,10 @@ export default function AdminRaApp() {
           <Route path="match-rules/:id/compare/:targetId" element={<MatchRuleCompare />} />
           <Route path="match-audits" element={<MatchAuditList />} />
           <Route path="match-quality" element={<MatchQualityDashboard />} />
+          <Route path="intelligent-matching/strategies" element={<IntelligentStrategyList />} />
+          <Route path="intelligent-matching/strategies/create" element={<IntelligentStrategyForm mode="create" />} />
+          <Route path="intelligent-matching/strategies/:id" element={<IntelligentStrategyShow />} />
+          <Route path="intelligent-matching/strategies/:id/edit" element={<IntelligentStrategyForm mode="edit" />} />
           <Route path="rule-experiments" element={<RuleExperimentList />} />
         </CustomRoutes>
       </Admin>

@@ -1,5 +1,5 @@
 {
-  "seeded_at": "2026-06-23T08:59:38.856960+00:00",
+  "seeded_at": "2026-06-28T14:11:41.139368+00:00",
   "demo_boundary": {
     "scope": "MATCH_QUALITY_ONLY",
     "credential_scope": "LOCAL_DEMO_ONLY",
@@ -16,13 +16,13 @@
   },
   "seeker_password": "Test1234",
   "rule_config_id": 24,
-  "experiment_id": 8,
+  "experiment_id": 9,
   "position_category": "RP401-Tech",
   "standard_position_id": 2,
   "risk_city": "RP401-Shanghai",
   "healthy_city": "RP401-Beijing",
-  "risk_job_id": 22,
-  "healthy_job_id": 23,
+  "risk_job_id": 25,
+  "healthy_job_id": 26,
   "match_count": 240,
   "expected": {
     "risk_city_application_rate": 0,
