@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../components/ui.jsx'
 import { LineChart, ScoreBar } from '../components/charts.jsx'
-import { adminStats, adminAIMetrics } from '../mock/data.js'
+import { adminStats, adminAIMetrics, reviewQueue as adminReviewQueue } from '../mock/data.js'
 import {
   createPromptConfig,
   getActivePromptConfig,
@@ -621,8 +621,6 @@ function Review() {
   const [certTotal, setCertTotal] = useState(0)
   const tagCls = { pass: 'pass', warning: 'warn', block: 'block' }
   const tagText = { pass: 'AI通过', warning: 'AI警告', block: 'AI拦截' }
-  const act = (id, ok) => { setQueue(q => q.filter(x => x.id !== id)); toast(ok ? '已通过' : '已驳回') }
-
   useEffect(() => {
     loadCertQueue(certStatusFilter)
   }, [certStatusFilter])

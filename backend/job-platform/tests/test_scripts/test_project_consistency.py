@@ -34,6 +34,14 @@ def test_backend_ci_provides_a_test_encryption_key() -> None:
     assert "ENCRYPTION_KEY:" in workflow
 
 
+def test_frontend_ci_runs_lint_tests_and_build() -> None:
+    workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "run: npm run lint" in workflow
+    assert "run: npm test" in workflow
+    assert "run: npm run build" in workflow
+
+
 def test_check_reports_an_incorrect_backend_entrypoint_port(tmp_path: Path) -> None:
     files = {
         "frontend/wechat-prototype/package.json": """
