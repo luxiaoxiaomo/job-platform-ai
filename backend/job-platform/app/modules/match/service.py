@@ -2,7 +2,6 @@
 Rule-based seeker-job matching service.
 """
 
-from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
 from typing import Any
@@ -22,21 +21,13 @@ from app.modules.match.config import (
     MatchRuleConfigService,
 )
 from app.modules.match.models import (
-    IntelligentMatchingStrategyModel,
     MatchRuleConfigModel,
     MatchRuleExperimentModel,
     MatchRuleMatchAuditModel,
     MatchRuleOperationAuditModel,
 )
 from app.modules.match.repository import MatchRuleConfigRepository
-from app.modules.match.scoring import (
-    HybridScoreWeights,
-    IntelligentScoreInput,
-    IntelligentScoringConfig,
-    IntelligentScoringService,
-    ThreeDimensionalWeights,
-)
-from app.modules.match.vector import VectorRecallResult, resolve_vector_recall_provider
+from app.modules.match.runtime import IntelligentMatchRuntime
 from app.modules.match.schemas import (
     JobMatchResponse,
     MatchAuditExperimentSummaryResponse,
@@ -668,22 +659,19 @@ class MatchService:
         ]
         rule_overall_score = BaselineMatchScorer.overall_score(dimensions)
         intelligent_strategy = (
-            await MatchService._active_intelligent_strategy_for_rule_config(
-                db, rule_config
-            )
+            await IntelligentMatchRuntime.active_strategy(db, rule_config)
         )
         intelligent_preview = None
         if intelligent_strategy is not None:
-            intelligent_preview = await MatchService._preview_runtime_intelligent_score(
+            intelligent_preview = await IntelligentMatchRuntime.preview_score(
                 db,
                 seeker=seeker,
                 job=job,
                 detail=detail,
-                dimensions=dimensions,
                 baseline_rule_score=rule_overall_score,
                 strategy=intelligent_strategy,
             )
-        overall_score = MatchService._runtime_overall_score(
+        overall_score = IntelligentMatchRuntime.overall_score(
             intelligent_preview, rule_overall_score
         )
         level, recommendation = BaselineMatchScorer.level_and_recommendation(
@@ -709,7 +697,7 @@ class MatchService:
             level=level,
             recommendation=recommendation,
             dimensions=dimensions,
-            intelligent_snapshot=MatchService._intelligent_scoring_snapshot(
+            intelligent_snapshot=IntelligentMatchRuntime.audit_snapshot(
                 intelligent_preview, overall_score
             ),
         )
@@ -763,235 +751,15 @@ class MatchService:
             ),
         )
 
-    @staticmethod
-    async def _active_intelligent_strategy_for_rule_config(
-        db: AsyncSession,
-        rule_config: MatchRuleConfig,
-    ) -> IntelligentMatchingStrategyModel | None:
-        base_rule_config_id = (
-            rule_config.id if isinstance(rule_config.id, int) else None
-        )
-        strategy = await MatchRuleConfigRepository.get_active_intelligent_strategy(
-            db,
-            base_rule_config_id=base_rule_config_id,
-        )
-        if strategy is not None or base_rule_config_id is not None:
-            return strategy
-        return await MatchRuleConfigRepository.get_active_intelligent_strategy(db)
 
-    @staticmethod
-    async def _preview_runtime_intelligent_score(
-        db: AsyncSession,
-        *,
-        seeker: User,
-        job: Job,
-        detail: Any,
-        dimensions: list[MatchDimensionResponse],
-        baseline_rule_score: int,
-        strategy: IntelligentMatchingStrategyModel,
-    ):
-        weights = dict(strategy.hybrid_weights or {})
-        vector_recall = dict(strategy.vector_recall or {})
-        vector_weight = MatchService._float_weight(weights.get("vector_score"), 0)
-        vector_enabled = bool(vector_recall.get("enabled"))
-        vector_result = MatchService._runtime_vector_recall_result(
-            job=job,
-            detail=detail,
-            vector_recall=vector_recall,
-            vector_enabled=vector_enabled,
-            vector_weight=vector_weight,
-        )
-        profile_coverage_score = MatchService._runtime_profile_coverage_score(detail)
-        behavior_quality_score = await MatchService._runtime_behavior_quality_score(
-            db,
-            job_id=job.id,
-            seeker_id=seeker.id,
-        )
-        preview = IntelligentScoringService.preview_score(
-            IntelligentScoreInput(
-                semantic_score=vector_result.semantic_score,
-                tag_score=baseline_rule_score,
-                keyword_score=None,
-                profile_coverage_score=profile_coverage_score,
-                behavior_quality_score=behavior_quality_score,
-                baseline_rule_score=baseline_rule_score,
-                vector_degrade_reason=vector_result.degrade_reason,
-                recall_source=vector_result.recall_source,
-            ),
-            config=MatchService._runtime_intelligent_scoring_config(weights),
-        )
-        return replace(preview, vector_metadata=vector_result.as_audit_metadata())
 
-    @staticmethod
-    def _runtime_vector_recall_result(
-        *,
-        job: Job,
-        detail: Any,
-        vector_recall: dict[str, Any],
-        vector_enabled: bool,
-        vector_weight: float,
-    ) -> VectorRecallResult:
-        if not vector_enabled or vector_weight <= 0:
-            return VectorRecallResult(semantic_score=None, recall_source="rule_only")
 
-        provider = resolve_vector_recall_provider(vector_recall)
-        if provider is None:
-            return VectorRecallResult(
-                semantic_score=None,
-                recall_source="rule_only",
-                degrade_reason="vector_store_unavailable",
-                provider=str(vector_recall.get("provider") or "unconfigured"),
-            )
-        return provider.score(job=job, detail=detail, config=vector_recall)
 
-    @staticmethod
-    def _runtime_intelligent_scoring_config(
-        weights: dict[str, Any],
-    ) -> IntelligentScoringConfig:
-        rule_weight = MatchService._float_weight(weights.get("rule_score"), 0.7)
-        vector_weight = MatchService._float_weight(weights.get("vector_score"), 0.2)
-        profile_weight = MatchService._float_weight(
-            weights.get("profile_coverage_score"), 0.1
-        )
-        behavior_weight = MatchService._float_weight(
-            weights.get("behavior_quality_score"), 0
-        )
-        base_weight = rule_weight + vector_weight
-        semantic_weight = vector_weight / base_weight if base_weight > 0 else 0
-        tag_weight = rule_weight / base_weight if base_weight > 0 else 1
-        return IntelligentScoringConfig(
-            three_dimensional_weights=ThreeDimensionalWeights(
-                semantic_score=semantic_weight,
-                tag_score=tag_weight,
-                keyword_score=0,
-            ),
-            final_weights=HybridScoreWeights(
-                base_match_score=base_weight,
-                profile_coverage_score=profile_weight,
-                behavior_quality_score=behavior_weight,
-            ),
-        )
 
-    @staticmethod
-    def _runtime_overall_score(intelligent_preview, baseline_rule_score: int) -> int:
-        if (
-            intelligent_preview is None
-            or intelligent_preview.score_components.final_match_score is None
-        ):
-            return baseline_rule_score
-        return max(
-            0,
-            min(
-                100,
-                round(float(intelligent_preview.score_components.final_match_score)),
-            ),
-        )
 
-    @staticmethod
-    def _runtime_profile_coverage_score(detail: Any) -> int:
-        basic = detail.basic_info
-        values = [
-            basic.highest_education if basic else None,
-            basic.work_years if basic else None,
-            basic.current_city if basic else None,
-            basic.target_position if basic else None,
-            basic.expected_salary if basic else None,
-            detail.skills,
-        ]
-        filled = sum(1 for value in values if MatchService._runtime_has_value(value))
-        return round(filled / len(values) * 100) if values else 0
 
-    @staticmethod
-    async def _runtime_behavior_quality_score(
-        db: AsyncSession,
-        *,
-        job_id: int,
-        seeker_id: int,
-    ) -> int | None:
-        application_result = await db.execute(
-            select(JobApplication.status)
-            .where(
-                JobApplication.job_id == job_id,
-                JobApplication.seeker_id == seeker_id,
-            )
-            .limit(1)
-        )
-        application_status = application_result.scalar_one_or_none()
-        if application_status is not None:
-            return {
-                "hired": 100,
-                "interview_invited": 95,
-                "viewed": 90,
-                "submitted": 88,
-                "rejected": 55,
-            }.get(str(application_status), 88)
 
-        favorite_result = await db.execute(
-            select(JobFavorite.id)
-            .where(
-                JobFavorite.job_id == job_id,
-                JobFavorite.seeker_id == seeker_id,
-            )
-            .limit(1)
-        )
-        if favorite_result.scalar_one_or_none() is not None:
-            return 85
 
-        visit_result = await db.execute(
-            select(JobVisit.id)
-            .where(
-                JobVisit.job_id == job_id,
-                JobVisit.seeker_id == seeker_id,
-            )
-            .limit(1)
-        )
-        if visit_result.scalar_one_or_none() is not None:
-            return 70
-        return None
-
-    @staticmethod
-    def _intelligent_scoring_snapshot(
-        intelligent_preview, overall_score: int
-    ) -> dict[str, Any] | None:
-        if intelligent_preview is None:
-            return None
-        return {
-            "key": "intelligent_scoring",
-            "label": "Intelligent scoring",
-            "score": overall_score,
-            "configured_weight": 100,
-            "effective_weight": 100,
-            "weighted_score": overall_score,
-            "matched": [],
-            "missing": [],
-            "explanation": "Runtime hybrid scoring snapshot.",
-            "match_source": intelligent_preview.match_source,
-            "recall_source": intelligent_preview.recall_source,
-            "degrade_reason": intelligent_preview.degrade_reason,
-            "score_components": intelligent_preview.score_components.as_dict(),
-            "actual_component_weights": intelligent_preview.actual_component_weights,
-            "configured_weights": intelligent_preview.configured_weights,
-            "hard_constraint_result": intelligent_preview.hard_constraint_result.as_dict(),
-            "explanation_codes": intelligent_preview.explanation_codes,
-            "weight_redistribution_reason": intelligent_preview.weight_redistribution_reason,
-            "vector_metadata": intelligent_preview.vector_metadata,
-        }
-
-    @staticmethod
-    def _runtime_has_value(value: Any) -> bool:
-        if value is None:
-            return False
-        if isinstance(value, str):
-            return bool(value.strip())
-        if isinstance(value, (list, tuple, set, dict)):
-            return bool(value)
-        return True
-
-    @staticmethod
-    def _float_weight(value: Any, default: float) -> float:
-        if value is None:
-            return default
-        return float(value)
 
     @staticmethod
     def _rule_config_response(rule_config: MatchRuleConfig) -> MatchRuleConfigResponse:
